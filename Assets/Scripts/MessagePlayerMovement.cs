@@ -1,7 +1,5 @@
 using System.Collections;
 using System.Collections.Generic;
-using TMPro.Examples;
-using Unity.VisualScripting.FullSerializer;
 using UnityEngine;
 
 public class MessagePlayerMovement : MessageBase

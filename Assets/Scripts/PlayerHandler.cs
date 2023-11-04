@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
-using UnityEditor.Experimental.GraphView;
 using UnityEngine;
 
 public class PlayerHandler
@@ -17,7 +16,7 @@ public class PlayerHandler
     //Queue<MessagePlayerMovement> actionQueue;
     UdpClient udpClient;
     IPEndPoint playerEP;
-    byte nextExpectedMessageNumber;
+    byte nextExpectedSequence;
     //int packetCheckDelay;
     //byte bufferWriteHeadPos;
     //int bufferStartDelay;
@@ -43,6 +42,7 @@ public class PlayerHandler
 
     int frameCount;
     float distanceTest;
+    float countTest;
     Vector3 prevPos;
     bool printOut = true;
     bool running;
@@ -97,40 +97,35 @@ public class PlayerHandler
 
         if (running)
         {
-            if (movesReceived < 5 && delayedRun)
-            {
 
-            }
-            else
-            {
-                delayedRun = false;
 
                 // GET NEXT MOVE
-                while (/*movesReceived > 0 &&*/ getNextMove)//actionQueue.Count > 0)
+                while (/*movesReceived > 0 &&*/ getNextMove && movesReceived > 0)//actionQueue.Count > 0)
                 {
-                    // Bufferi täytettiin valmiiksi
-                    /*
-                    if(playerPacketBuffer[currentMove] == null)
-                    {
-                        playerPacketBuffer[currentMove] = new MessagePlayerMovement();
-                    }
-                    */
-
+                // Bufferi täytettiin valmiiksi
+                /*
+                if(playerPacketBuffer[currentMove] == null)
+                {
+                    playerPacketBuffer[currentMove] = new MessagePlayerMovement();
+                }
+                */
                     if (!playerPacketBuffer[currentMove].notInUse)
                     {
 
                         //cc.Move(remainingMove);
+
                         distance = player.transform.position;
                         distanceMovedSoFar = 0f;
                         currentInputs = (PlayerMovement)playerPacketBuffer[currentMove].move.Item;//(PlayerMovement)actionQueue.Dequeue().move.Item;
                         distanceMovedByClient = playerPacketBuffer[currentMove].distance.Item;
-                        Debug.Log("CURRENT "+currentMove+" DIST"+ distanceMovedByClient);
+                    Debug.Log("P: " + playerPacketBuffer[currentMove].sequenceNumber + " " + distanceMovedByClient);
+                        //Debug.Log("CURRENT "+currentMove+" DIST"+ distanceMovedByClient);
                         //player.transform.position += (new Vector3(xMov, 0f, zMov) * Time.fixedDeltaTime * 10f);
                         currentMove++;
                         movesReceived--;
                         getNextMove = false;
                     }
-                    else if (currentMove < nextExpectedMessageNumber)
+                    else if (currentMove < nextExpectedSequence)
                     {
                         Debug.Log("SKIPPED");
                         currentMove++;
@@ -147,73 +142,71 @@ public class PlayerHandler
                     //Debug.Log("IDLING!!!!");
                 }
 
-                // NORMAL MOVE
+            // NORMAL MOVE
 
-                //moveDirection = new Vector3(xMov, 0f, zMov);
+            //moveDirection = new Vector3(xMov, 0f, zMov);
 
 
-                //Debug.Log("DIRECTION: " + (new Vector3(xMov, 0f, zMov) +" TRAVELED: "+distanceMovedByClient+" LEFT: "+(distanceMovedByClient-distanceMovedSoFar)));
+            //Debug.Log("DIRECTION: " + (new Vector3(xMov, 0f, zMov) +" TRAVELED: "+distanceMovedByClient+" LEFT: "+(distanceMovedByClient-distanceMovedSoFar)));
 
-                if (!getNextMove)
+            if (!getNextMove)
+            {
+                float xMov = 0f;
+                if (currentInputs.HasFlag(PlayerMovement.left)) xMov = -1f;
+                if (currentInputs.HasFlag(PlayerMovement.right)) xMov = 1f;
+                float zMov = 0f;
+                if (currentInputs.HasFlag(PlayerMovement.forward)) zMov = 1f;
+                if (currentInputs.HasFlag(PlayerMovement.backward)) zMov = -1f;
+
+                //Debug.Log("C DIST:" + distanceMovedByClient + " P DIST:" + distanceMovedSoFar);
+
+
+                if ((distanceMovedSoFar + Time.deltaTime) < distanceMovedByClient)
                 {
-                    float xMov = 0f;
-                    if (currentInputs.HasFlag(PlayerMovement.left)) xMov = -1f;
-                    if (currentInputs.HasFlag(PlayerMovement.right)) xMov = 1f;
-                    float zMov = 0f;
-                    if (currentInputs.HasFlag(PlayerMovement.forward)) zMov = 1f;
-                    if (currentInputs.HasFlag(PlayerMovement.backward)) zMov = -1f;
 
-                    //Debug.Log("C DIST:" + distanceMovedByClient + " P DIST:" + distanceMovedSoFar);
+
+                    //cc.Move(new Vector3(xMov, 0f, zMov) * Time.deltaTime * ServerSettings.tempPlayerSpeed);
+                    distanceMovedSoFar += Time.deltaTime;
+
+                    float move = player.transform.position.x - prevPos.x;
+                    prevPos = player.transform.position;
+                    //Debug.Log("P MOVED " + move);
+                    distanceTest += move;
+                    frameCount++;
+                }
+                else
+                {
+                    //Debug.Log("STOP AND MOVES REMAINING = " + movesReceived);
+
+
+                    //remainingMove = (new Vector3(xMov, 0f, zMov) * ServerSettings.tempPlayerSpeed * (distanceMovedByClient - distanceMovedSoFar));
+                    //cc.Move(remainingMove);
+                    cc.Move(new Vector3(xMov, 0f, zMov) * playerPacketBuffer[currentMove-1].distance.Item * ServerSettings.tempPlayerSpeed);
+                    //if (currentInputs != 0) Debug.Log("PLAYER 0: " + playerPacketBuffer[currentMove].sequenceNumber + " " + playerPacketBuffer[currentMove].distance.Item + " " + (playerPacketBuffer[currentMove].distance.Item * ServerSettings.tempPlayerSpeed));
+                    //if (currentInputs != 0) Debug.Log("PLAYER 1: " + playerPacketBuffer[currentMove + 1].sequenceNumber + " " + playerPacketBuffer[currentMove + 1].distance.Item + " " + (playerPacketBuffer[currentMove + 1].distance.Item * ServerSettings.tempPlayerSpeed));
+
+
+
+                    //float move = player.transform.position.x - prevPos.x;
+                    //prevPos = player.transform.position;
+                    //Debug.Log("MOVED " + move);
+                    //distanceTest += move;
+                    //frameCount++;
+
                     /*
+                Debug.Log("DISTANCE MOVED BY PLAYER: " + (distance - player.transform.position) 
+                    + " IN "+(distanceMovedSoFar + (distanceMovedByClient-distanceMovedSoFar))
+                    + " BUT RECEIVED "+distanceMovedByClient);
+                    */
 
-                    if ((distanceMovedSoFar + Time.deltaTime) < distanceMovedByClient)
-                    {
-
-
-                        cc.Move(new Vector3(xMov, 0f, zMov) * Time.deltaTime * ServerSettings.tempPlayerSpeed);
-                        distanceMovedSoFar += Time.deltaTime;
-
-                        float move = player.transform.position.x - prevPos.x;
-                        prevPos = player.transform.position;
-                        //Debug.Log("P MOVED " + move);
-                        distanceTest += move;
-                        frameCount++;
-                    }
-                    else
-                    {
-                        //Debug.Log("STOP AND MOVES REMAINING = " + movesReceived);
-                        remainingMove = (new Vector3(xMov, 0f, zMov) * ServerSettings.tempPlayerSpeed * (distanceMovedByClient - distanceMovedSoFar));
-                        cc.Move(remainingMove);
-
-                        float move = player.transform.position.x - prevPos.x;
-                        prevPos = player.transform.position;
-                        //Debug.Log("MOVED " + move);
-                        distanceTest += move;
-                        frameCount++;
-
-                        if (printOut)
-                        {
-                            printOut = false;
-                            Debug.Log("PLAYER MOVED " + distanceTest + " IN " + frameCount + " FRAMES.");
-                        }
-                        
-                    Debug.Log("DISTANCE MOVED BY PLAYER: " + (distance - player.transform.position) 
-                        + " IN "+(distanceMovedSoFar + (distanceMovedByClient-distanceMovedSoFar))
-                        + " BUT RECEIVED "+distanceMovedByClient);
-                    
-
-                        getNextMove = true;
-                    }
-                */
-                    cc.Move(new Vector3(xMov, 0f, zMov) * distanceMovedByClient * ServerSettings.tempPlayerSpeed);
-                    Debug.Log("DISTANCE MOVED BY PLAYER: " + (distance - player.transform.position)
-    + " IN " + (distanceMovedSoFar + (distanceMovedByClient - distanceMovedSoFar))
-    + " BUT RECEIVED " + distanceMovedByClient);
+                    //Debug.Log("PREV " + playerPacketBuffer[currentMove - 1].distance.Item);
                     getNextMove = true;
                 }
 
-
             }
+
+
+            
         }
         //distanceMovedSoFar += Time.deltaTime;
 
@@ -282,12 +275,13 @@ public class PlayerHandler
             running = true;
         }
 
-        byte moveMessageIndex = newMove[ServerSettings.sequenceSegment + newMoveStartPos];
+        byte currentSequence = newMove[ServerSettings.sequenceSegment + newMoveStartPos];
         //Debug.Log("RECEIVED: " + newMove[newMoveStartPos+ServerSettings.sequenceSegment]);
+        //Debug.Log("EXPECTED: " + nextExpectedSequence);
         // Nullataan vanha että tiedetään jos jää tyhjä kohta.
         //playerPacketBuffer[(byte)(nextExpectedMessageIndex + 1)] = null;
-        playerPacketBuffer[(byte)(nextExpectedMessageNumber + 1)].notInUse = true;
-        int indexDifference = moveMessageIndex - nextExpectedMessageNumber; //newPacket.indexNumber - nextExpectedMessageIndex;
+        playerPacketBuffer[(byte)(nextExpectedSequence + 1)].notInUse = true;
+        int indexDifference = currentSequence - nextExpectedSequence; //newPacket.indexNumber - nextExpectedMessageIndex;
 
         ushort lastMessageLength = BitConverter.ToUInt16(newMove,newMoveStartPos);
         // Indexit täsmää
@@ -295,10 +289,10 @@ public class PlayerHandler
         {
             //Debug.Log("Created "+nextExpectedMessageNumber);
             //playerPacketBuffer[nextExpectedMessageIndex] = newPacket;
-            playerPacketBuffer[nextExpectedMessageNumber].ToData(newMove, newMoveStartPos);
-            playerPacketBuffer[nextExpectedMessageNumber].notInUse = false;
+            playerPacketBuffer[nextExpectedSequence].ToData(newMove, newMoveStartPos);
+            playerPacketBuffer[nextExpectedSequence].notInUse = false;
             //actionQueue.Enqueue(newPacket);
-            nextExpectedMessageNumber++;
+            nextExpectedSequence++;
             movesReceived++;
         }
         // Nykyinen index on edellä eli saatiin vanha paketti. Otetaan talteen jos vielä puuttuu. 255 on roll over kohta: 255 - 0 = 255
@@ -306,22 +300,22 @@ public class PlayerHandler
             || indexDifference == 255)
         {
             //Debug.Log("ADDING OLD!");
-            if (playerPacketBuffer[moveMessageIndex].notInUse)
+            if (playerPacketBuffer[currentSequence].notInUse)
             {
-                playerPacketBuffer[moveMessageIndex].ToData(newMove, newMoveStartPos);
-                playerPacketBuffer[moveMessageIndex].notInUse = false;
+                playerPacketBuffer[currentSequence].ToData(newMove, newMoveStartPos);
+                playerPacketBuffer[currentSequence].notInUse = false;
             }
         }
         // Joko paketti puuttuu koska ei koskaan saapunut tai tulee viivellä. Joka tapauksessa merkataan kohta josta aloitetaan korjaaminen.
         else
         {
-            Debug.Log("MISSED A PACKET = " + nextExpectedMessageNumber+". Got = "+moveMessageIndex);
-            if (markIndexForRepair < 0) markIndexForRepair = nextExpectedMessageNumber;
-            playerPacketBuffer[moveMessageIndex].ToData(newMove,newMoveStartPos);
-            playerPacketBuffer[moveMessageIndex].notInUse = false;
+            Debug.Log("MISSED A PACKET = " + nextExpectedSequence+". Got = "+currentSequence);
+            if (markIndexForRepair < 0) markIndexForRepair = nextExpectedSequence;
+            playerPacketBuffer[currentSequence].ToData(newMove,newMoveStartPos);
+            playerPacketBuffer[currentSequence].notInUse = false;
             //actionQueue.Enqueue(newPacket);
-            nextExpectedMessageNumber = moveMessageIndex;
-            nextExpectedMessageNumber++;
+            nextExpectedSequence = currentSequence;
+            nextExpectedSequence++;
             movesReceived++;
         }
 
@@ -419,7 +413,7 @@ public class PlayerHandler
         byte missingCheckIndex = (byte)markIndexForRepair;
 
 
-        while(missingCheckIndex != nextExpectedMessageNumber)
+        while(missingCheckIndex != nextExpectedSequence)
         {
             if (playerPacketBuffer[missingCheckIndex].notInUse)
             {

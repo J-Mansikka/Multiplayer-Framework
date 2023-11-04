@@ -106,29 +106,12 @@ public class AsyncClient: MonoBehaviour
                 inputs |= PlayerMovement.right;
             }
 
-            SimMove();
+            //SimMove();
 
-            float move = realtimeMove.transform.position.x - prevPos.x;
+
             //Debug.Log(move);
 
-            if (move > 0f)
-            {
 
-                //Debug.Log("C MOVED " + move);
-                distanceTest += move;
-                frameCount++;
-                prevPos = realtimeMove.transform.position;
-                hasMoved = true;
-            }
-            else
-            {
-                if (hasMoved)
-                {
-                    hasMoved = false;
-                    //Debug.Log("CLIENT MOVED " + distanceTest + " IN " + frameCount + " FRAMES.");
-                    move = -999999f;
-                }
-            }
 
             if (updateTimer > Time.fixedDeltaTime) //&& inputs != 0)
             {
@@ -138,8 +121,25 @@ public class AsyncClient: MonoBehaviour
                 // LIIKE TAPAHTUU UPDATESSA. PITÄÄ AINA OTTAA HUOMIOON KUINKA PALJON ON LIIKUTTU KU LÄHETTÄÄ.
                 // UPDATE LIIKE PITÄÄ MYÖS OLLA VARMASTI SAMA ELI JOS JÄÄ YHTEEN FRAMEE ENÄÄ MILLI NIIN OLKOOT
                 // JOS DESYNC JATKUU NI SITTE PITÄÄ VAAN EHKÄ YRITTÄÄ LIIKUTTAA SERVERIN PELAAJA KOHTI ANNETTUA "OIKEAA KOHTAA" EI PITÄIS SILTI PÄÄST SEINIST LÄPI
+
+                float xMov = 0f;
+                if (inputs.HasFlag(PlayerMovement.left)) xMov = -1f;
+                if (inputs.HasFlag(PlayerMovement.right)) xMov = 1f;
+                float zMov = 0f;
+                if (inputs.HasFlag(PlayerMovement.forward)) zMov = 1f;
+                if (inputs.HasFlag(PlayerMovement.backward)) zMov = -1f;
+
+                Debug.Log("C: "+seqNumber+" "+updateTimer);
+
+                cc.Move(new Vector3(xMov, 0f, zMov) * updateTimer * ServerSettings.tempPlayerSpeed);
+
+                if (inputs != 0)
+                {
+                    //Debug.Log("CLIENT: " + seqNumber + " " + updateTimer + " " + (updateTimer * ServerSettings.tempPlayerSpeed));
+
+                }
                 MessagePlayerMovement newMes = new MessagePlayerMovement();
-                Debug.Log("DISTANCE MOVED BY CLIENT: " + (distance - realtimeMove.transform.position) + " IN "+updateTimer);
+                //Debug.Log("DISTANCE MOVED BY CLIENT: " + (distance - realtimeMove.transform.position) + " IN "+updateTimer);
                 distance = realtimeMove.transform.position;
                 newMes.Setup(seqNumber, (byte)inputs, updateTimer);
                 testDelayedInputs.Enqueue(newMes);
@@ -152,6 +152,7 @@ public class AsyncClient: MonoBehaviour
 
 
                 currentMove = inputs;
+
                 inputs = 0;
 
 
@@ -184,6 +185,7 @@ public class AsyncClient: MonoBehaviour
         //Debug.Log("CLIENT: INPUT = "+xMov+". DT = "+deltaTime+". FT = "+frameTime);
         //Debug.Log(move);
         cc.Move(move);
+        currentMove = 0;
         //nextPosition = new Vector3(xMov, 0f, zMov) * ServerSettings.tempPlayerSpeed;
         //cc.Move(new Vector3(xMov, 0f, zMov) * Time.fixedDeltaTime * 10f);
         //realtimeMove.transform.position += (new Vector3(xMov, 0f, zMov) * Time.fixedDeltaTime * 10f);
