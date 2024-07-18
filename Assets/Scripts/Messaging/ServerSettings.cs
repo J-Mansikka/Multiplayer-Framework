@@ -7,6 +7,9 @@ public static class ServerSettings
     // TEMP AND TESTING VALUES
     //public int testMessageSize = 6;
 
+    public static int idLength = 1;
+    public static int maxItemSize = 512;
+    public static int packetBufferSize = 1024;
 
     public static int maxPacketSize = 1400;
     public static int maxSegmentsInMessage = 16;
