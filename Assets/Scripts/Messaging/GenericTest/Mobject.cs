@@ -27,7 +27,7 @@ public abstract class Mobject : MonoBehaviour
         foreach ( MdataItem item in allNetworkItems )
         {
             item.Initialize();
-            if(item.sizeAsBytes > ServerSettings.maxItemSize)
+            if(item.sizeAsBytes > ServerSettings.maxSyncedObjects)
             {
                 Debug.LogError(nameof(item)+" size is over the limit.");
             }

@@ -1,32 +1,30 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Text;
 using UnityEngine;
 
 [Serializable]
-public class TestingArray : MnetVariableType<TestingNamedFlag[]>
+public class MnetString : MnetVariableType<string>
 {
-    public TestingArray(MnetObject owner) : base(owner)
-    {
-    }
-
     public override void Deserialize(Span<byte> receivedBytes)
     {
-        throw new NotImplementedException();
+        Value = Encoding.Unicode.GetString(receivedBytes);
     }
 
     public override void Serialize(Span<byte> reservedBytes)
     {
-        throw new NotImplementedException();
+        Encoding.Unicode.GetBytes(Value,reservedBytes);
     }
 
     public override void SetSize()
     {
-        throw new NotImplementedException();
+        sizeInBytes = (short)(Value.Length * 2 + ServerSettings.bytesReservedForItemSizeValue);
+        //Debug.Log("SIZE Was changed " + Value.Length);
     }
 
     public override void Setup()
     {
-
+        varyingSize = true;
     }
 }

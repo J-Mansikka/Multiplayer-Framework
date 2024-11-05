@@ -1,23 +1,23 @@
 using System;
+using System.Buffers.Binary;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
 [Serializable]
-public class TestingArray : MnetVariableType<TestingNamedFlag[]>
+public class MnetInt : MnetVariableType<int>
 {
-    public TestingArray(MnetObject owner) : base(owner)
-    {
-    }
-
     public override void Deserialize(Span<byte> receivedBytes)
     {
-        throw new NotImplementedException();
+        //Value = BitConverter.ToInt32(receivedBytes);
+        Value = BinaryPrimitives.ReadInt32LittleEndian(receivedBytes);
+        Debug.Log("READ " + _value);
     }
 
     public override void Serialize(Span<byte> reservedBytes)
     {
-        throw new NotImplementedException();
+        //BitConverter.TryWriteBytes(reservedBytes, Value);
+        BinaryPrimitives.WriteInt32LittleEndian(reservedBytes, _value);
     }
 
     public override void SetSize()
@@ -27,6 +27,6 @@ public class TestingArray : MnetVariableType<TestingNamedFlag[]>
 
     public override void Setup()
     {
-
+        sizeInBytes = 4;
     }
 }

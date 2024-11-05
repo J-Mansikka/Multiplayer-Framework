@@ -7,7 +7,7 @@ using System;
 
 public class MtestOrc : Mobject
 {
-    public Mstring orcName;
+    public MnetString orcName;
     public Mfloat x;
     public Mfloat y;
     public Mint hitpoints;
@@ -18,7 +18,7 @@ public class MtestOrc : Mobject
     public Mint numberOfSons;
     public Mint address;
 
-    public TestingUser[] strinkki;
+    public MnetString[] strinkki;
 
     private void Awake()
     {
@@ -33,5 +33,8 @@ public class MtestOrc : Mobject
         byte[] hullo = new byte[4];
         int numba = BitConverter.ToInt32(hullo, 0);
         //Setup();
+
+
     }
+
 }

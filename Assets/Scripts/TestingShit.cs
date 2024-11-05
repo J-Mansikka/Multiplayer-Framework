@@ -7,7 +7,7 @@ public class TestingShit : MonoBehaviour
     public Mfloat floatti;
     public Mint sizeTesting;
     byte[] flags = new byte[10];
-    public TestingUser strinki;
+    public MnetString strinki;
     private void Start()
     {   
 
