@@ -9,13 +9,13 @@ using UnityEngine;
 public class MnetPacketBuffer
 {
     public bool isCircularBuffer;
-    public int currentID = 0;
+    //public int currentID = 0;
     public MnetPacket[] buffer;
     //private byte[][] packetBuffer;
 
 
 
-    public MnetPacketBuffer(int size = ServerSettings.serverPacketBufferSize)
+    public MnetPacketBuffer(int size = ServerSettings.serverPacketBufferSize, bool bufferIsServerType = true)
     {
         //buffer = new MnetPacket[ServerSettings.packetBufferSize];
         //packetBuffer = new byte[ServerSettings.packetBufferSize][ServerSettings.maxPacketSize];
@@ -23,7 +23,7 @@ public class MnetPacketBuffer
         buffer = new MnetPacket[size];
         for (int i = 0; i < buffer.Length; i++)
         {
-            buffer[i] = new MnetPacket();
+            buffer[i] = new MnetPacket(bufferIsServerType);
         }
         // Link packets in buffer together
         for (int i = 0; i < buffer.Length - 1; i++)

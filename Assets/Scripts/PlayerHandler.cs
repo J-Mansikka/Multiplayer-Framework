@@ -226,6 +226,7 @@ public class PlayerHandler
             // SPLIT... WE AINT SPLITTIN THIS SHIT LETS GOOO
 
             //SWITCH
+            /*
             switch ((MessageType)messageBytes[ServerSettings.typeSegment+nextMessageStart])
             {
                 case MessageType.ClientInput:                    
@@ -238,6 +239,7 @@ public class PlayerHandler
                     Debug.LogError("Player message was not recognized.");
                     break;
             }
+            */
 
         }
 

@@ -10,12 +10,7 @@ public enum TransferType
                         // 10 FREE SPOTS for future types but these should be plenty.
 }
 
-public enum MessageType
-{
-    NotSet = 0,
-    ClientInput = 1,
 
-}
 
 public abstract class MessageBase
 {

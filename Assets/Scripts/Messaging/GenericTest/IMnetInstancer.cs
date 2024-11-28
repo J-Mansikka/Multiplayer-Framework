@@ -2,7 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public interface IMnetSpawning
+public interface IMnetInstancer
 {
     public MnetObject RemoteSpawnRequest(short objectTypeID, short objectID);
 

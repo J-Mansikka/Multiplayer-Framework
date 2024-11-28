@@ -11,11 +11,15 @@ public class MnetOrc : MnetObject
     public MnetString name;
     public MnetInt level;
     public MnetInt exp;
+
+    int fps = 0;
+    float time = 0f;
     private void Awake()
     {
         //variables = new MnetVariable[] {hitpoints, level, phoneNumber, coins, xp, power, enemyClass, nimi, phone, osote, radio};
         //variables = new MnetInt[10];
         //int intFill = 1;
+
 
         Setup(this);
 
@@ -47,6 +51,18 @@ public class MnetOrc : MnetObject
         */
 
     }
+
+    private void Update()
+    {
+
+    }
+
+    void FixedUpdate()
+    {
+
+    }
+
+
 
     public override void Tick()
     {

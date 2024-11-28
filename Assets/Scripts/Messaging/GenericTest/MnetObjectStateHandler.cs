@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class MnetObjectInstanceMessenger : MnetObject
+public class MnetObjectStateHandler : MnetObject
 {
     /*
      tarvitaan objecti lista tyypeistä
@@ -18,7 +18,7 @@ public class MnetObjectInstanceMessenger : MnetObject
      
      */
     [SerializeField]
-    public IMnetSpawning spawner;
+    public IMnetInstancer objectInstancer;
     public List<MnetObject> playerPrefabs;
     public List<MnetObject> networkedPrefabs;       // prefabs must be in the same order on both the server and the client ends
     private Queue<short> freeObjectIndex;           // Keeps track of free object IDs and hands them out on spawning and returns them on despawning
@@ -46,6 +46,11 @@ public class MnetObjectInstanceMessenger : MnetObject
         /// typeID ja handlerin lisäys ei pitäsi vaikuttaa mihinkään tässä vaiheessa et voi lyödä tähä
         networkedPrefabs.InsertRange(0, playerPrefabs);
 
+        // Set messaging mode. If left to auto, instance messenger will override with its own
+        foreach (MnetObject netObject in networkedPrefabs )
+        {
+            if (netObject.messagingMode == MessagingDirection.Auto) netObject.messagingMode = messagingMode;
+        }
         /* pidetään objectit erossa messengeristä
         for (int i = 0; i < networkedPrefabs.Count; i++)
         {
@@ -94,24 +99,29 @@ public class MnetObjectInstanceMessenger : MnetObject
         activeObjects.Remove(despawningObjectInstance);
     }
 
-    // !! Clientit
-    public void ExecuteRemoteSpawn()
-    {
-        spawner.RemoteSpawnRequest();
-    }
-
-    public void ExecuteRemoteDespawn()
-    {
-        short despawnID = 0;
-        spawner.RemoteDespawnRequest(despawnID);
-    }
-
     public override void Tick()
     {
-        int actionCount = actions
-        for (int i = 0; i < ; i++)
+        int actionCount = actions.numberOfActions;
+        for (int i = 0; i < actionCount; i++)
         {
-
+            newAction = actions.Value[i];
+            switch (newAction.action)
+            {
+                case ObjectInstanceAction.Spawn:
+                    {
+                        objectInstancer.RemoteSpawnRequest(newAction.objectType, newAction.objectID);
+                        break;
+                    }
+                case ObjectInstanceAction.Despawn:
+                    {
+                        objectInstancer.RemoteDespawnRequest(newAction.objectID);
+                        break;
+                    }
+                default:
+                    {
+                        break;
+                    }
+            }
         }
     }
 

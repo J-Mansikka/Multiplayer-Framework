@@ -7,8 +7,14 @@ using System.Reflection;
 using System.Security.Cryptography;
 using UnityEngine;
 
+public enum MessagingDirection
+{
+    Auto, SendOnly, ReceiveOnly, BothWays
+}
 public class MnetObject : MonoBehaviour
 {
+    [Tooltip("Messaging mode determines who has control over the object. AUTO = Copy from Instance Messenger. ")]
+    public MessagingDirection messagingMode;    // Auto means the object will use the same mode as the Instance Messenger object
     //public MnetObjectInstanceMessenger handler;   /// parempi että spawneri hoitaa objectin kommunikoinnin. Turhia välikäsiä muute
     public short objectTypeID;             // ID number used by the ObjectHandler to communicate what type of object is being spawned/despawned
     public short objectID;                  // ID of object instance that is active and being synced
@@ -31,6 +37,7 @@ public class MnetObject : MonoBehaviour
             {
                 extractedVar = (MnetVariable)field.GetValue(owner);
                 extractedVar.Setup();
+                if(extractedVar.itemMessagingMode == MessagingDirection.Auto) extractedVar.itemMessagingMode = messagingMode;
                 vars.Add(field.Name,extractedVar);
                 //Debug.Log(field.Name);
             }

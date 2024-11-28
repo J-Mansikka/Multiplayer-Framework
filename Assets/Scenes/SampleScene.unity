@@ -764,6 +764,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   serverAddress: 127.0.0.1
   serverPort: 54321
+  objectHandler: {fileID: 1669388624}
   objectsBeingSynced: []
 --- !u!1 &560308096
 GameObject:
@@ -794,15 +795,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9a23bccaf3dd01a458cb265251ac1008, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  handler: {fileID: 0}
+  messagingMode: 0
   objectTypeID: 0
   objectID: 0
   hasUpdated: 0
   currentSize: 0
   client: 1
   name:
-    ignoreOlder: 0
-    reconciliation: 0
+    itemMessagingMode: 0
     varyingSize: 0
     sizeInBytes: -1
     hasChanged: 0
@@ -812,8 +812,7 @@ MonoBehaviour:
     owner: {fileID: 0}
     _value: 
   level:
-    ignoreOlder: 0
-    reconciliation: 0
+    itemMessagingMode: 0
     varyingSize: 0
     sizeInBytes: -1
     hasChanged: 0
@@ -823,8 +822,7 @@ MonoBehaviour:
     owner: {fileID: 0}
     _value: 0
   exp:
-    ignoreOlder: 0
-    reconciliation: 0
+    itemMessagingMode: 0
     varyingSize: 0
     sizeInBytes: -1
     hasChanged: 0
@@ -867,7 +865,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!23 &694004359
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -926,7 +924,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 694004357}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 3, z: 0}
+  m_LocalPosition: {x: 0, y: 2, z: 0}
   m_LocalScale: {x: 2, y: 2, z: 2}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -968,16 +966,10 @@ MonoBehaviour:
   m_GameObject: {fileID: 694004357}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4ca62e9881fb06b4cac5c9706708b1f8, type: 3}
+  m_Script: {fileID: 11500000, guid: d51e09be9ff1250498a9584ea7f216e8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  handler: {fileID: 0}
-  objectTypeID: 0
-  objectID: 0
-  hasUpdated: 0
-  currentSize: 0
-  clint: {fileID: 0}
-  updateStep: 0.2
+  remote: {fileID: 1613098575}
 --- !u!1 &705363694
 GameObject:
   m_ObjectHideFlags: 0
@@ -1327,15 +1319,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9a23bccaf3dd01a458cb265251ac1008, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  handler: {fileID: 0}
+  messagingMode: 0
   objectTypeID: 0
   objectID: 0
   hasUpdated: 0
   currentSize: 0
   client: 0
   name:
-    ignoreOlder: 0
-    reconciliation: 0
+    itemMessagingMode: 0
     varyingSize: 0
     sizeInBytes: -1
     hasChanged: 0
@@ -1345,8 +1336,7 @@ MonoBehaviour:
     owner: {fileID: 0}
     _value: Dingus
   level:
-    ignoreOlder: 0
-    reconciliation: 0
+    itemMessagingMode: 0
     varyingSize: 0
     sizeInBytes: -1
     hasChanged: 0
@@ -1356,8 +1346,7 @@ MonoBehaviour:
     owner: {fileID: 0}
     _value: 10
   exp:
-    ignoreOlder: 0
-    reconciliation: 0
+    itemMessagingMode: 0
     varyingSize: 0
     sizeInBytes: -1
     hasChanged: 0
@@ -1545,10 +1534,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2ecb79548d4f64845b19c96e2fa5f2f2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  serverIP: 127.0.0.1
+  objectHandler: {fileID: 1669388624}
+  clientIPaddress: 127.0.0.1
+  clientPort: 0
+  serverAddress: 127.0.0.1
   serverPort: 54321
-  clientName: 
-  objects: {fileID: 0}
+  objectsBeingSynced: []
 --- !u!1 &939397052
 GameObject:
   m_ObjectHideFlags: 0
@@ -1880,10 +1871,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2ecb79548d4f64845b19c96e2fa5f2f2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  serverIP: 127.0.0.1
+  objectHandler: {fileID: 0}
+  clientIPaddress: 
+  clientPort: 0
+  serverAddress: 
   serverPort: 54321
-  clientName: 127.0.0.1#12345
-  objects: {fileID: 0}
+  objectsBeingSynced: []
 --- !u!1 &1230494402
 GameObject:
   m_ObjectHideFlags: 0
@@ -2152,6 +2145,7 @@ GameObject:
   - component: {fileID: 1387852144}
   - component: {fileID: 1387852143}
   - component: {fileID: 1387852142}
+  - component: {fileID: 1387852146}
   m_Layer: 0
   m_Name: Obstacle
   m_TagString: Untagged
@@ -2200,7 +2194,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 10303, guid: 0000000000000000f000000000000000, type: 0}
+  - {fileID: 2100000, guid: 16e0cd07b38e2dd4f9d70db1bc137f2a, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -2245,6 +2239,18 @@ Transform:
   m_Father: {fileID: 0}
   m_RootOrder: 13
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1387852146
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1387852141}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7c042081bd6f0e14eac03593f514929e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &1401833342
 GameObject:
   m_ObjectHideFlags: 0
@@ -2673,6 +2679,7 @@ GameObject:
   - component: {fileID: 1613098572}
   - component: {fileID: 1613098571}
   - component: {fileID: 1613098574}
+  - component: {fileID: 1613098575}
   m_Layer: 6
   m_Name: SimulatedCube
   m_TagString: Untagged
@@ -2771,6 +2778,18 @@ CharacterController:
   m_SkinWidth: 0.08
   m_MinMoveDistance: 0.001
   m_Center: {x: 0, y: 0, z: 0}
+--- !u!114 &1613098575
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1613098570}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 56ceb17a70718c141952b5be8274945b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &1669388621
 GameObject:
   m_ObjectHideFlags: 0
@@ -2780,7 +2799,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1669388623}
-  - component: {fileID: 1669388622}
+  - component: {fileID: 1669388624}
   m_Layer: 0
   m_Name: ObjectHandler
   m_TagString: Untagged
@@ -2788,26 +2807,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &1669388622
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1669388621}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b7a9aca3084342c45999140862bfef71, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  handler: {fileID: 0}
-  objectTypeID: 0
-  objectID: 0
-  hasUpdated: 0
-  currentSize: 0
-  playerPrefabs: []
-  networkedPrefabs: []
-  maxActionsPerTick: 512
 --- !u!4 &1669388623
 Transform:
   m_ObjectHideFlags: 0
@@ -2823,6 +2822,26 @@ Transform:
   m_Father: {fileID: 0}
   m_RootOrder: 18
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1669388624
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1669388621}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 85e48dabe30bd2b4184642c2802dfc5f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  messagingMode: 0
+  objectTypeID: 0
+  objectID: 0
+  hasUpdated: 0
+  currentSize: 0
+  playerPrefabs: []
+  networkedPrefabs: []
+  maxActionsPerTick: 512
 --- !u!1 &1802576913
 GameObject:
   m_ObjectHideFlags: 0
@@ -3211,8 +3230,7 @@ MonoBehaviour:
   sender: {fileID: 0}
   receiver: {fileID: 0}
   arry:
-    ignoreOlder: 0
-    reconciliation: 0
+    itemMessagingMode: 0
     varyingSize: 0
     sizeInBytes: -1
     hasChanged: 0
@@ -3228,8 +3246,7 @@ MonoBehaviour:
     - flag: MQ_01_BossKilled
       value: 0
   useri:
-    ignoreOlder: 0
-    reconciliation: 0
+    itemMessagingMode: 0
     varyingSize: 0
     sizeInBytes: -1
     hasChanged: 0

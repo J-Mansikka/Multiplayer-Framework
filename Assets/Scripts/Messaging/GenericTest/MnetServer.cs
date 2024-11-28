@@ -2,6 +2,7 @@ using JetBrains.Annotations;
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -22,27 +23,31 @@ public class MnetServer : MonoBehaviour
     [Tooltip("Port used to listen to new connections")]
     public int serverPort;
     [Tooltip("Object Handler which handles spawn/despawn messaging")]
-    public MnetObjectInstanceMessenger objectHandler;
+    public MnetObjectStateHandler objectHandler;
     private MnetPacketBuffer buffer;
-    private MnetPacketBuffer worldStateBuffer;
+    private MnetPacketBuffer worldSnapshotBuffer;
+    //private MnetPacketBuffer worldStateBuffer;
 
     //public MnetObject[] objectsBeingSynced;         // All the objects that are being syncronized
     public List<MnetObject> objectsBeingSynced;
-    Dictionary<uint, MnetRemoteClientConnection> clients;    // Client handlers act as player surrogates on the server. IP addresses act as the unique keys
-    //
+    Dictionary<int, MnetClientHandler> clients;    // Client handlers act as player surrogates on the server. IP addresses act as the unique keys
+    private List<int> disconnectedClients;
 
     private int currentPacketNumber;
     private int lastTickSize;
-    private int currentFrameNumber;
-    private float currentFrameTime;
+    private int currentTickNumber;
+    private float currentTickDuration;
+    private int worldStateTickVersion;          // Current tick number of stored world snapshot in buffer, so we only do it once if multiple need it
     //private List<MnetPacket> writeBuffer;
     private MnetPacket currentPacket;
     private Socket newConnectionSocket;
     private IPEndPoint serverEP;
     //private Thread udpThread;
-    private byte[] newConnectionPacketBytes;
+    private MnetPacket newConnectionPacket;
     //private long newConnectionCode;
     private bool serverRunning;
+
+    HashSet<short> objectsMarkedImportant;
 
     private List<Socket> socks;
     private Socket newSock;
@@ -62,33 +67,28 @@ public class MnetServer : MonoBehaviour
 
     private void Awake()
     {
+        currentTickNumber = 0;
         serverIP = IPAddress.Parse("127.0.0.1");
         //locker = new object();
-        if(objectsBeingSynced == null)
-        {
-            objectsBeingSynced = new List<MnetObject>(ServerSettings.maxSyncedObjects);
+        objectsBeingSynced = new List<MnetObject>(ServerSettings.maxSyncedObjects);
+        disconnectedClients = new List<int>();
             //objectsBeingSynced = new MnetObject[ServerSettings.maxSyncedObjects];
-        }
-
         buffer = new MnetPacketBuffer();
+        worldSnapshotBuffer = new MnetPacketBuffer(ServerSettings.worldStatePacketBufferSize);
         //// Mihin tallettaa world state bufferin koko? Vois olla sama ku max update size ja lis‰t settinkeihi
-        worldStateBuffer = new MnetPacketBuffer(64);
-        newConnectionPacketBytes = new byte[28];
-        if(objectHandler == null) { objectHandler = FindObjectOfType<MnetObjectInstanceMessenger>(); }
+        newConnectionPacket = new MnetPacket(false); //new byte[28];
         objectHandler.HandlerSetup(objectsBeingSynced);
+        objectsMarkedImportant = new HashSet<short>();
     }
 
     private void Start()
     {
         //StartServer();
 
-        currentFrameTime = Time.realtimeSinceStartup;
-        currentFrameNumber = 69;
-        //CreatePacket();
-        currentFrameNumber++;
+        currentTickDuration = Time.realtimeSinceStartup;
 
-        checkClientsTimer = ServerSettings.clientSendRate;
-        tickTimer = ServerSettings.serverSendRate;
+        checkClientsTimer = 0f;
+        tickTimer = 0f;
         //ServerTest();
 
 
@@ -240,32 +240,37 @@ public class MnetServer : MonoBehaviour
         while (newConnectionSocket.Available != 0)
         {
             // Take the packet and extract the possible message type identifier
-            newConnectionSocket.Receive(newConnectionPacketBytes.AsSpan());
-            string newMessageType = Encoding.ASCII.GetString(newConnectionPacketBytes.AsSpan().Slice(0, 16));            
+            newConnectionSocket.Receive(newConnectionPacket.Span());
+            string newMessageType = Encoding.ASCII.GetString(newConnectionPacket.Span(0, 16));            
 
             // If the incoming message was identified as a new connection request, extract ip and port
-            if (newMessageType == ServerSettings.messageNewConnectionRequest)
+            if (newMessageType == ServerSettings.messageClientNewConnectionRequest)
             {
+                // Add return message identifier
+                Encoding.ASCII.GetBytes(ServerSettings.messageServerNewConnectionResponse.AsSpan(), newConnectionPacket.Span());
                 // IP Addresses are commonly sent in big endian form
-                long newIP = BinaryPrimitives.ReadInt64BigEndian(newConnectionPacketBytes.AsSpan().Slice(16, 8));
-                int newPort = BinaryPrimitives.ReadInt32LittleEndian(newConnectionPacketBytes.AsSpan().Slice(24, 4));
-                uint connectionIdentifier = (uint)newIP;
+                IPAddress newIP = new IPAddress(newConnectionPacket.Span(16, 4));
+                int newPort = BinaryPrimitives.ReadInt32LittleEndian(newConnectionPacket.Span(20, 4));
+                int connectionIdentifier = BinaryPrimitives.ReadInt32LittleEndian(newConnectionPacket.Span(16, 4));
                 // Check if the incoming message was from a new client
                 if (!clients.ContainsKey(connectionIdentifier))
                 {
                     int newLocalClientPort = serverPort + 1 + clients.Count;
-                    MnetRemoteClientConnection newClient = new MnetRemoteClientConnection(this, connectionIdentifier, serverEP.Address, newLocalClientPort, new IPAddress(newIP), newPort);
+                    MnetClientHandler newClient = new MnetClientHandler(buffer, worldSnapshotBuffer
+                        ,connectionIdentifier, serverEP.Address, newLocalClientPort, newIP, newPort);
                     clients.Add(connectionIdentifier, newClient);
 
                 }
                 // Replace the ip address and port values on the handshake message with the valid clientHandler ones
-                BinaryPrimitives.WriteInt64BigEndian(newConnectionPacketBytes.AsSpan().Slice(10,8), clients[connectionIdentifier].localIP);
-                BinaryPrimitives.WriteInt32LittleEndian(newConnectionPacketBytes.AsSpan().Slice(18,4), clients[connectionIdentifier].localPort);
-                
+                clients[connectionIdentifier].handlerEP.Address.TryWriteBytes(newConnectionPacket.Span(16, 4), out _);
+                //BinaryPrimitives.WriteInt64BigEndian(newConnectionPacketBytes.AsSpan().Slice(16,8), clients[connectionIdentifier].remoteEP.Address.GetAddressBytes().AsSpan());
+                BinaryPrimitives.WriteInt32LittleEndian(newConnectionPacket.Span(20,4), clients[connectionIdentifier].handlerEP.Port);
+
                 // Send the changed handshake message back to the client with optional redundancy copies
+                // SendTo in Standard 2.1 does not support span, so it is necessary to get the actual bytes from packet
                 for (int i = 0; i < ServerSettings.redundantCopiesHandshake; i++)
                 {
-                    newConnectionSocket.SendTo(newConnectionPacketBytes, clients[connectionIdentifier].remoteEP);
+                    newConnectionSocket.SendTo(newConnectionPacket.Data, clients[connectionIdentifier].remoteClientEP);
                 }
             }
 
@@ -273,17 +278,34 @@ public class MnetServer : MonoBehaviour
         
     }
 
-    private void UpdatePlayerHandlers(float frameTime)
-    {
-        foreach (MnetRemoteClientConnection client in clients.Values)
-        {
-            client.PlayerUpdate(frameTime);
-        }
-    }
 
-    public void DisconnectPlayer(uint identifier)
+    /// <summary>
+    /// In this method the server will call update on the players who are still connected and checks if there are some
+    /// who have disconnected. They will then be removed.
+    /// </summary>
+    /// <param name="frameTime">Frame time</param>
+    private void UpdatePlayerHandlers()
     {
-        clients.Remove(identifier);
+        foreach (MnetClientHandler client in clients.Values)
+        {
+            if(client.connectionState == ConnectionState.Disconnected)
+            {
+                disconnectedClients.Add(client.clientDictionaryKey);
+            }
+            else
+            {
+                client.CheckForMessages(Time.deltaTime);
+            }
+        }
+
+        if(disconnectedClients.Count > 0) 
+        {
+            foreach (int disconnectedClient in disconnectedClients)
+            {
+                clients.Remove(disconnectedClient);
+            }
+            disconnectedClients.Clear();
+        }
     }
 
     private void Tick()
@@ -294,36 +316,46 @@ public class MnetServer : MonoBehaviour
         }
     }
 
-    private void SendWorldStateToPlayers()
+    private void CreatePacketFromTick(float time)
     {
-        foreach(MnetRemoteClientConnection client in clients.Values)
+
+        // Create packet with only the changes between ticks
+        CreatePacket(time);
+        foreach (MnetClientHandler client in clients.Values)
         {
-            client.SendWorldPacket();
+            // In case one of the players needs a full update, create one
+            if (client.connectionState == ConnectionState.SyncWorldState && currentTickNumber != worldStateTickVersion)
+            {
+                CreatePacket(time, true);
+            }
+
+            // Call update on all players so they can send the packets
+            client.TickRemoteClient(time);
         }
+
     }
 
     private void LateUpdate()
     {
         //ListenTest();
 
+        /// joku parempi t‰h‰ ku yks booli? VAi tarviiko serveri edes? Onko sill‰ state vai aina vaan hommissa tai nukkuu
         if (serverRunning)
         {
-            tickTimer -= Time.deltaTime;
-            checkClientsTimer -= Time.deltaTime;
+            tickTimer += Time.deltaTime;
+            checkClientsTimer += Time.deltaTime;
 
-            if (checkClientsTimer <= 0f)
+            if (checkClientsTimer >= ServerSettings.clientSendRate)
             {
                 CheckForNewConnections();
-                UpdatePlayerHandlers(Time.deltaTime);
-                checkClientsTimer += ServerSettings.clientSendRate;
+                UpdatePlayerHandlers();
+                checkClientsTimer -= ServerSettings.clientSendRate;
             }
-            if (tickTimer <= 0f)
+            if (tickTimer >= ServerSettings.serverSendRate)
             {
                 Tick();
-                //Debug.Log("TIMES WERE " + tickTimer + " and framtime " + (ServerSettings.serverSendRate - tickTimer));
-                CreatePacket(ServerSettings.serverSendRate - tickTimer);
-                SendWorldStateToPlayers();
-                tickTimer += ServerSettings.serverSendRate;
+                CreatePacketFromTick(tickTimer - ServerSettings.serverSendRate);
+                tickTimer -= ServerSettings.serverSendRate;
             }
         }
         // Check and get player packets = Luultavasti aina enint‰‰n yksi paketti vaikka olisi vanhat per‰ss‰
@@ -431,7 +463,7 @@ public class MnetServer : MonoBehaviour
         */
     }
 
-    private void CreatePacket(float frameTime, bool getWorldState = false)
+    private void CreatePacket(float frameTime, bool createFullSnapshot = false)
     {
         //int remainingBytes = 0;
         // Turha alotus check?
@@ -460,13 +492,15 @@ public class MnetServer : MonoBehaviour
         MnetPacket firstPacketInUpdate;
 
         //// S‰‰det‰‰n mihin bufferiin/toimintoon n‰‰ kuuluu, joko world state p‰ivitys tai normi
-        if (getWorldState)
+        if (createFullSnapshot)
         {
-            firstPacketInUpdate = worldStateBuffer.Get(0);
+            firstPacketInUpdate = worldSnapshotBuffer.Get(0);
+            firstPacketInUpdate.PacketType = MessageType.FullWorldUpdate;
         }
         else
         {
             firstPacketInUpdate = currentPacket;
+            firstPacketInUpdate.PacketType = MessageType.Normal;
         }
 
         activePacket = firstPacketInUpdate;
@@ -479,9 +513,6 @@ public class MnetServer : MonoBehaviour
         //
         //
         //
-
-
-        int infLoop = 1000;
 
         /*
         foreach (MnetPacket packet in writeBuffer)
@@ -505,7 +536,7 @@ public class MnetServer : MonoBehaviour
             */
             bool processingObject;
             short sizeOfObject;
-            if (getWorldState)
+            if (createFullSnapshot)
             {
                 processingObject = true;
                 sizeOfObject = activeObject.GetCurrentTotalSize();
@@ -523,7 +554,7 @@ public class MnetServer : MonoBehaviour
                 if (sizeOfObject <= (ServerSettings.maxPacketSize - activePacket.currentLength))
                 {
                     //// Mahtuu eli otetaan paketista loput tavut ja kirjotetaan objekti niihin
-                    activeObject.WriteChanges(activePacket.GetRemainingSpace(), getWorldState);
+                    activeObject.WriteChanges(activePacket.RemainingPacketSpace(), createFullSnapshot);
                     activePacket.currentLength += sizeOfObject;
                     // Start over with next object if remaining
                     currentPacketID = 0;
@@ -591,28 +622,44 @@ public class MnetServer : MonoBehaviour
         activePacket = firstPacketInUpdate;
         for (int i = 0; i <= numberOfExtraPacketsNeeded; i++)
         {
-            Span<byte> packetNeedingHeader = activePacket.GetHeader();
-            BinaryPrimitives.WriteInt32LittleEndian(packetNeedingHeader.Slice(ServerSettings.headerPacketNumberPosition, 4)
+            if (createFullSnapshot)
+            {
+                activePacket.PacketType = MessageType.FullWorldUpdate;
+            }
+            else
+            {
+                activePacket.PacketType = MessageType.Normal;
+            }
+
+            Span<byte> packetNeedingHeader = activePacket.PacketHeader();
+            BinaryPrimitives.WriteInt32LittleEndian(packetNeedingHeader.Slice(ServerSettings.headerServerPacketNumberPosition, 4)
                 , currentPacketNumber++);//currentPacketNumber + i);
-            BinaryPrimitives.WriteInt16LittleEndian(packetNeedingHeader.Slice(ServerSettings.headerSizePosition, 2)
+            BinaryPrimitives.WriteInt16LittleEndian(packetNeedingHeader.Slice(ServerSettings.headerServerSizePosition, 2)
                 , activePacket.currentLength);
+            /*
+            if (createFullSnapshot)
+            {
+                packetNeedingHeader[ServerSettings.headerServerSizePosition] += (byte)PacketFlag.ContainsWorldSnapshot;                
+            }
+            */
+
             // Unity does not support all BinaryPrimitives' methods, so BitConverter is used as a substitute
-            BitConverter.TryWriteBytes(packetNeedingHeader.Slice(ServerSettings.headerTimePosition, 4), currentFrameTime);
-            BinaryPrimitives.WriteInt32LittleEndian(packetNeedingHeader.Slice(ServerSettings.headerTickNumberPosition, 4),
-                currentFrameNumber);
+            BitConverter.TryWriteBytes(packetNeedingHeader.Slice(ServerSettings.headerServerTickTimePosition, 4), currentTickDuration);
+            BinaryPrimitives.WriteInt32LittleEndian(packetNeedingHeader.Slice(ServerSettings.headerServerTickNumberPosition, 4),
+                currentTickNumber);
 
             // If the frame needs multiple packets, add sequence number and total number of packets.
-            // If singular packet, set values to zero.
-            packetNeedingHeader[ServerSettings.headerFrameSplitPosition] = 
+            // If update can fit singular packet and there is no splitting, set values to zero.
+            packetNeedingHeader[ServerSettings.headerServerTickSplitInfoPosition] = 
                 (numberOfExtraPacketsNeeded > 0) ? (byte)i : (byte)0;
-            packetNeedingHeader[ServerSettings.headerFrameSplitPosition+1] = 
+            packetNeedingHeader[ServerSettings.headerServerTickSplitInfoPosition+1] = 
                 (numberOfExtraPacketsNeeded > 0) ? (byte)numberOfExtraPacketsNeeded : (byte)0;
             //buffer.Add(currentPacketNumber + i, packetNeedingHeader);
             activePacket = activePacket.nextPacket;
         }
         currentPacket.extraPacketsInUpdate = numberOfExtraPacketsNeeded;
         //// Jos oli normi p‰ivitys ni tiedet‰‰n mist‰ jatkaaa seuraavassa rundissa
-        if(!getWorldState) currentPacket = activePacket;        
+        if(!createFullSnapshot) currentPacket = activePacket;        
     }
 }
 

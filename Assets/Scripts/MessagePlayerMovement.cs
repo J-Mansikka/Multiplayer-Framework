@@ -33,7 +33,7 @@ public class MessagePlayerMovement : MessageBase
 
     public MessagePlayerMovement()
     {
-        messageType = MessageType.ClientInput;
+        //messageType = MessageType.ClientInput;
         messageSegments = new MessageSegmentBase[] { move,distance };
         AutoSetup();
         /*
