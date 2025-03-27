@@ -8,7 +8,9 @@ public abstract class MnetVariableArray<T> : MnetVariable
 {
     [SerializeField]
     protected T[] _value;
-    private bool[] changed;
+    //private bool[] changed;
+    private Queue<int> changes;     // Käytä inttiä mutta lähettäessä kutista array koon mukaan (eli alle 256 mahtuu bytee tai sitte short)
+    private bool useFlags = true;   //- Sitte ku lukee ni vois käyttää 0 byten lohkoja ja vaan lisätä viimeisin perään eli byte -> int olis 0 0 0 X
     public T[] Value
     {
         get { return _value; }
@@ -16,7 +18,7 @@ public abstract class MnetVariableArray<T> : MnetVariable
         {
             _value = value;
             hasChanged = true;
-            owner.hasUpdated = true;
+            //owner.hasUpdated = true;
             SetSize();
             owner.currentSize += sizeInBytes;
         }
@@ -30,9 +32,10 @@ public abstract class MnetVariableArray<T> : MnetVariable
         set
         {
             _value[i] = value;
-            changed[i] = true;
+            changes.Enqueue(i);
             hasChanged = true;
         }
     }
+
 
 }

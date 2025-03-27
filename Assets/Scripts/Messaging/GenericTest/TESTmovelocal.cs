@@ -26,7 +26,7 @@ public class TESTmovelocal : MonoBehaviour
         //Debug.Log("LOCAL MOVE TIME " + timePassed);
 
 
-        if (timePassed > ServerSettings.clientSendRate)
+        if (timePassed > MnetSettings.clientSendRate)
         {
             Vector3 move = new Vector3(x, 0f, y) * speed * timePassed;
             transform.Translate(move);
@@ -38,7 +38,7 @@ public class TESTmovelocal : MonoBehaviour
 
             if (Input.GetKey(KeyCode.LeftArrow)) { x = -1; }
             else if (Input.GetKey(KeyCode.RightArrow)) { x = 1; }
-            timePassed -= ServerSettings.clientSendRate;
+            timePassed -= MnetSettings.clientSendRate;
         }
     }
 }

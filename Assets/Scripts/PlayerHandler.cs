@@ -181,7 +181,7 @@ public class PlayerHandler
 
                     //remainingMove = (new Vector3(xMov, 0f, zMov) * ServerSettings.tempPlayerSpeed * (distanceMovedByClient - distanceMovedSoFar));
                     //cc.Move(remainingMove);
-                    cc.Move(new Vector3(xMov, 0f, zMov) * playerPacketBuffer[currentMove-1].distance.Item * ServerSettings.tempPlayerSpeed);
+                    cc.Move(new Vector3(xMov, 0f, zMov) * playerPacketBuffer[currentMove-1].distance.Item * MnetSettings.tempPlayerSpeed);
                     //if (currentInputs != 0) Debug.Log("PLAYER 0: " + playerPacketBuffer[currentMove].sequenceNumber + " " + playerPacketBuffer[currentMove].distance.Item + " " + (playerPacketBuffer[currentMove].distance.Item * ServerSettings.tempPlayerSpeed));
                     //if (currentInputs != 0) Debug.Log("PLAYER 1: " + playerPacketBuffer[currentMove + 1].sequenceNumber + " " + playerPacketBuffer[currentMove + 1].distance.Item + " " + (playerPacketBuffer[currentMove + 1].distance.Item * ServerSettings.tempPlayerSpeed));
 
@@ -277,7 +277,7 @@ public class PlayerHandler
             running = true;
         }
 
-        byte currentSequence = newMove[ServerSettings.sequenceSegment + newMoveStartPos];
+        byte currentSequence = newMove[MnetSettings.sequenceSegment + newMoveStartPos];
         //Debug.Log("RECEIVED: " + newMove[newMoveStartPos+ServerSettings.sequenceSegment]);
         //Debug.Log("EXPECTED: " + nextExpectedSequence);
         // Nullataan vanha ett‰ tiedet‰‰n jos j‰‰ tyhj‰ kohta.

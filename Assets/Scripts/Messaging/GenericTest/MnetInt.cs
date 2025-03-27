@@ -11,7 +11,6 @@ public class MnetInt : MnetVariableType<int>
     {
         //Value = BitConverter.ToInt32(receivedBytes);
         Value = BinaryPrimitives.ReadInt32LittleEndian(receivedBytes);
-        Debug.Log("READ " + _value);
     }
 
     public override void Serialize(Span<byte> reservedBytes)
@@ -28,5 +27,6 @@ public class MnetInt : MnetVariableType<int>
     public override void Setup()
     {
         sizeInBytes = 4;
+        sizeCategory = VariableSize.Static;
     }
 }

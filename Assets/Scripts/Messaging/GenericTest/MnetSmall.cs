@@ -10,7 +10,7 @@ public class MnetSmall : MnetObject
         //booliTest = new MnetBool();
         variables = new MnetVariable[1];
         variables[0] = booliTest;
-        Setup(this);
+        //Setup();
         booliTest.Set(true, 2);
         /*
         variables = new MnetInt[25];

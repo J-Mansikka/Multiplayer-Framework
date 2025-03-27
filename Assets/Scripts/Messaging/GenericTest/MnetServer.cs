@@ -70,11 +70,11 @@ public class MnetServer : MonoBehaviour
         currentTickNumber = 0;
         serverIP = IPAddress.Parse("127.0.0.1");
         //locker = new object();
-        objectsBeingSynced = new List<MnetObject>(ServerSettings.maxSyncedObjects);
+        objectsBeingSynced = new List<MnetObject>(MnetSettings.maxSyncedObjects);
         disconnectedClients = new List<int>();
             //objectsBeingSynced = new MnetObject[ServerSettings.maxSyncedObjects];
         buffer = new MnetPacketBuffer();
-        worldSnapshotBuffer = new MnetPacketBuffer(ServerSettings.worldStatePacketBufferSize);
+        worldSnapshotBuffer = new MnetPacketBuffer(MnetSettings.worldStatePacketBufferSize);
         //// Mihin tallettaa world state bufferin koko? Vois olla sama ku max update size ja lisät settinkeihi
         newConnectionPacket = new MnetPacket(false); //new byte[28];
         objectHandler.HandlerSetup(objectsBeingSynced);
@@ -234,6 +234,8 @@ public class MnetServer : MonoBehaviour
         */
     }
 
+    // !! ! ! MOST MAGIC NUMEROT VOI PERKELE SAAAAAAAAAAAAAAATANA!
+    // AIKA LUKKOO LYÖTY TÄÄ OSA ETTEI TARVII USERIN EHKÄ MUUTTAA MUTTA NIMEE AINAKI PARAMETRIT VITTU JEESUS KRISTSUS
     private void CheckForNewConnections()
     {
         // Check if socket has any packets in its buffer
@@ -244,10 +246,10 @@ public class MnetServer : MonoBehaviour
             string newMessageType = Encoding.ASCII.GetString(newConnectionPacket.Span(0, 16));            
 
             // If the incoming message was identified as a new connection request, extract ip and port
-            if (newMessageType == ServerSettings.messageClientNewConnectionRequest)
+            if (newMessageType == MnetSettings.messageClientNewConnectionRequest)
             {
                 // Add return message identifier
-                Encoding.ASCII.GetBytes(ServerSettings.messageServerNewConnectionResponse.AsSpan(), newConnectionPacket.Span());
+                Encoding.ASCII.GetBytes(MnetSettings.messageServerNewConnectionResponse.AsSpan(), newConnectionPacket.Span());
                 // IP Addresses are commonly sent in big endian form
                 IPAddress newIP = new IPAddress(newConnectionPacket.Span(16, 4));
                 int newPort = BinaryPrimitives.ReadInt32LittleEndian(newConnectionPacket.Span(20, 4));
@@ -268,7 +270,7 @@ public class MnetServer : MonoBehaviour
 
                 // Send the changed handshake message back to the client with optional redundancy copies
                 // SendTo in Standard 2.1 does not support span, so it is necessary to get the actual bytes from packet
-                for (int i = 0; i < ServerSettings.redundantCopiesHandshake; i++)
+                for (int i = 0; i < MnetSettings.redundantCopiesHandshake; i++)
                 {
                     newConnectionSocket.SendTo(newConnectionPacket.Data, clients[connectionIdentifier].remoteClientEP);
                 }
@@ -345,17 +347,17 @@ public class MnetServer : MonoBehaviour
             tickTimer += Time.deltaTime;
             checkClientsTimer += Time.deltaTime;
 
-            if (checkClientsTimer >= ServerSettings.clientSendRate)
+            if (checkClientsTimer >= MnetSettings.clientSendRate)
             {
                 CheckForNewConnections();
                 UpdatePlayerHandlers();
-                checkClientsTimer -= ServerSettings.clientSendRate;
+                checkClientsTimer -= MnetSettings.clientSendRate;
             }
-            if (tickTimer >= ServerSettings.serverSendRate)
+            if (tickTimer >= MnetSettings.serverSendRate)
             {
                 Tick();
-                CreatePacketFromTick(tickTimer - ServerSettings.serverSendRate);
-                tickTimer -= ServerSettings.serverSendRate;
+                CreatePacketFromTick(tickTimer - MnetSettings.serverSendRate);
+                tickTimer -= MnetSettings.serverSendRate;
             }
         }
         // Check and get player packets = Luultavasti aina enintään yksi paketti vaikka olisi vanhat perässä
@@ -523,23 +525,18 @@ public class MnetServer : MonoBehaviour
 
         //// Napataan seuraava objecti jos on olemassa ja seuraavassa loopissa käsitellään
         //while (currentObjectIndex < objectsBeingSynced.Length)
+
+        /* AALKUPERÄNE
+
         foreach(MnetObject activeObject in objectsBeingSynced)
         {
-            //activeObject = objectsBeingSynced[currentObjectIndex];
-            /*
-            //// TYhjä slot, NEXT!
-            if(activeObject == null)
-            {
-                currentObjectIndex++;
-                continue;
-            }
-            */
+
             bool processingObject;
             short sizeOfObject;
             if (createFullSnapshot)
             {
-                processingObject = true;
-                sizeOfObject = activeObject.GetCurrentTotalSize();
+                processingObject = true;    // Snapshotissa tarvitaa kaikki tieto oli sitte muuttunu tai ei viime frames
+                sizeOfObject = activeObject.UpdateCurrentSize();  // Tarvitaa koko koko (hoho hoho) ku otetaan objekti kokonaisena
             }
             else
             {
@@ -554,7 +551,7 @@ public class MnetServer : MonoBehaviour
                 if (sizeOfObject <= (ServerSettings.maxPacketSize - activePacket.currentLength))
                 {
                     //// Mahtuu eli otetaan paketista loput tavut ja kirjotetaan objekti niihin
-                    activeObject.WriteChanges(activePacket.RemainingPacketSpace(), createFullSnapshot);
+                    activeObject.WriteChanges(activePacket.AvailableSpace(), createFullSnapshot);
                     activePacket.currentLength += sizeOfObject;
                     // Start over with next object if remaining
                     currentPacketID = 0;
@@ -574,16 +571,7 @@ public class MnetServer : MonoBehaviour
                     }
                 }
             }
-            /*
-            currentObjectIndex++;
-            infLoop--;
 
-            if (infLoop == 0)
-            {
-                print("INF LOOP DINGUS");
-                break;
-            }
-            */
 
         }
         firstPacketInUpdate.extraPacketsInUpdate = numberOfExtraPacketsNeeded;
@@ -636,12 +624,7 @@ public class MnetServer : MonoBehaviour
                 , currentPacketNumber++);//currentPacketNumber + i);
             BinaryPrimitives.WriteInt16LittleEndian(packetNeedingHeader.Slice(ServerSettings.headerServerSizePosition, 2)
                 , activePacket.currentLength);
-            /*
-            if (createFullSnapshot)
-            {
-                packetNeedingHeader[ServerSettings.headerServerSizePosition] += (byte)PacketFlag.ContainsWorldSnapshot;                
-            }
-            */
+
 
             // Unity does not support all BinaryPrimitives' methods, so BitConverter is used as a substitute
             BitConverter.TryWriteBytes(packetNeedingHeader.Slice(ServerSettings.headerServerTickTimePosition, 4), currentTickDuration);
@@ -659,7 +642,8 @@ public class MnetServer : MonoBehaviour
         }
         currentPacket.extraPacketsInUpdate = numberOfExtraPacketsNeeded;
         //// Jos oli normi päivitys ni tiedetään mistä jatkaaa seuraavassa rundissa
-        if(!createFullSnapshot) currentPacket = activePacket;        
+        if(!createFullSnapshot) currentPacket = activePacket;      
+        */
     }
 }
 

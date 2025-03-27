@@ -8,12 +8,12 @@ using UnityEngine;
 public class MnettInstanceMessageSegments : MnetVariableType<MnetInstanceMessageData[]>
 {
     public int numberOfActions = 0;
-
+    /*
     public MnettInstanceMessageSegments(MnetObject owner, int maxSize) : base(owner)
     {
         Value = new MnetInstanceMessageData[maxSize];
     }
-
+    */
     public override void Deserialize(Span<byte> receivedBytes)
     {
         numberOfActions = BinaryPrimitives.ReadInt16LittleEndian(receivedBytes);
@@ -35,19 +35,21 @@ public class MnettInstanceMessageSegments : MnetVariableType<MnetInstanceMessage
         {
             segment = 5 * i;
             reservedBytes[segment] = (byte)Value[i].action;
+            /* !!! LUKITTU SHORTIKS, KÄYTÄ TOOLS. YLENMPÄNÄ SAMA JUTTU VITTU
             BinaryPrimitives.WriteInt16LittleEndian(reservedBytes.Slice(segment + 1), Value[i].objectID);
             BinaryPrimitives.WriteInt16LittleEndian(reservedBytes.Slice(segment + 3), Value[i].objectType);
-        }
+        */
+            }
         numberOfActions = 0;
     }
 
     public override void SetSize()
     {
-        sizeInBytes = (short)(numberOfActions * 5);
+        sizeInBytes = numberOfActions * 5;
     }
 
     public override void Setup()
     {
-        varyingSize = true;
+        sizeCategory = VariableSize.Varies;
     }
 }

@@ -782,7 +782,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!114 &560308097
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -795,42 +795,69 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9a23bccaf3dd01a458cb265251ac1008, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  messagingMode: 0
   objectTypeID: 0
-  objectID: 0
-  hasUpdated: 0
+  objectInstanceID: 32768
+  flagByteCount: 0
   currentSize: 0
+  prevActiveObject: {fileID: 0}
+  nextActiveObject: {fileID: 0}
   client: 1
   name:
-    itemMessagingMode: 0
-    varyingSize: 0
-    sizeInBytes: -1
+    sizeCategory: 0
+    sizeInBytes: 0
     hasChanged: 0
-    flagIndex: 0
-    orderIndex: 0
     bytes: 
+    variableName: 
     owner: {fileID: 0}
     _value: 
   level:
-    itemMessagingMode: 0
-    varyingSize: 0
+    sizeCategory: 0
     sizeInBytes: -1
     hasChanged: 0
-    flagIndex: 0
-    orderIndex: 0
     bytes: 
+    variableName: 
     owner: {fileID: 0}
     _value: 0
   exp:
-    itemMessagingMode: 0
-    varyingSize: 0
+    sizeCategory: 0
     sizeInBytes: -1
     hasChanged: 0
-    flagIndex: 0
-    orderIndex: 0
     bytes: 
+    variableName: 
     owner: {fileID: 0}
     _value: 0
+  longTest_1:
+    sizeCategory: 0
+    sizeInBytes: -1
+    hasChanged: 0
+    bytes: 
+    variableName: 
+    owner: {fileID: 0}
+    _value: 
+  longTest_2:
+    sizeCategory: 0
+    sizeInBytes: -1
+    hasChanged: 0
+    bytes: 
+    variableName: 
+    owner: {fileID: 0}
+    _value: 
+  longTest_3:
+    sizeCategory: 2
+    sizeInBytes: -1
+    hasChanged: 0
+    bytes: 
+    variableName: 
+    owner: {fileID: 0}
+    _value: 
+  splittiBee:
+    sizeCategory: 0
+    sizeInBytes: 0
+    hasChanged: 0
+    bytes: 
+    variableName: 
+    owner: {fileID: 0}
+    _value: 
 --- !u!4 &560308098
 Transform:
   m_ObjectHideFlags: 0
@@ -1319,42 +1346,85 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9a23bccaf3dd01a458cb265251ac1008, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  messagingMode: 0
   objectTypeID: 0
-  objectID: 0
-  hasUpdated: 0
+  objectInstanceID: 69
+  flagByteCount: 0
   currentSize: 0
+  prevActiveObject: {fileID: 0}
+  nextActiveObject: {fileID: 0}
   client: 0
   name:
-    itemMessagingMode: 0
-    varyingSize: 0
-    sizeInBytes: -1
+    sizeCategory: 0
+    sizeInBytes: 0
     hasChanged: 0
-    flagIndex: 0
-    orderIndex: 0
     bytes: 
+    variableName: 
     owner: {fileID: 0}
     _value: Dingus
   level:
-    itemMessagingMode: 0
-    varyingSize: 0
+    sizeCategory: 0
     sizeInBytes: -1
     hasChanged: 0
-    flagIndex: 0
-    orderIndex: 0
     bytes: 
+    variableName: 
     owner: {fileID: 0}
     _value: 10
   exp:
-    itemMessagingMode: 0
-    varyingSize: 0
+    sizeCategory: 0
     sizeInBytes: -1
     hasChanged: 0
-    flagIndex: 0
-    orderIndex: 0
     bytes: 
+    variableName: 
     owner: {fileID: 0}
     _value: 1500
+  longTest_1:
+    sizeCategory: 0
+    sizeInBytes: -1
+    hasChanged: 0
+    bytes: 
+    variableName: 
+    owner: {fileID: 0}
+    _value: Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum commodo
+      pretium dui ut fringilla.
+  longTest_2:
+    sizeCategory: 0
+    sizeInBytes: -1
+    hasChanged: 0
+    bytes: 
+    variableName: 
+    owner: {fileID: 0}
+    _value: Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum commodo
+      pretium dui ut fringilla.
+  longTest_3:
+    sizeCategory: 2
+    sizeInBytes: -1
+    hasChanged: 0
+    bytes: 
+    variableName: 
+    owner: {fileID: 0}
+    _value: Wave to us! We'll be in row 118,000. Bye! Barry, I told you, stop flying
+      in the house! Hey, Adam. Hey, Barry. Is that fuzz gel? A little. Special day,
+      graduation. Never thought I'd make it. Three days grade school, three days
+      high school. Those were awkward. Three days college. I'm glad I took a day
+      and hitchhiked around The Hive. You did come back different. Hi, Barry. Artie,
+      growing a mustache? Looks good. Hear about Frankie? Yeah.
+  splittiBee:
+    sizeCategory: 0
+    sizeInBytes: 0
+    hasChanged: 0
+    bytes: 
+    variableName: 
+    owner: {fileID: 0}
+    _value: According to all known laws of aviation, there is no way a bee should
+      be able to fly. Its wings are too small to get its fat little body off the
+      ground. The bee, of course, flies anyway because bees don't care what humans
+      think is impossible. Yellow, black. Yellow, black. Yellow, black. Yellow, black.
+      Ooh, black and yellow! Let's shake it up a little. Barry! Breakfast is ready!
+      Coming! Hang on a second. Hello? Barry? Adam? Can you believe this is happening?
+      I can't. I'll pick you up. Looking sharp. Use the stairs, Your father paid
+      good money for those. Sorry. I'm excited. Here's the graduate. We're very proud
+      of you, son. A perfect report card, all B's. Very proud. Ma! I got a thing
+      going here. You got lint on your fuzz. Ow! That's me!
 --- !u!1 &806283089
 GameObject:
   m_ObjectHideFlags: 0
@@ -1681,6 +1751,53 @@ Transform:
   m_Father: {fileID: 1401833346}
   m_RootOrder: -1
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1016134086
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1016134088}
+  - component: {fileID: 1016134087}
+  m_Layer: 0
+  m_Name: TurhaTestingi
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1016134087
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1016134086}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1cf18a977f722e741a60d539837ea516, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  fuckingGo: 0
+  send: {fileID: 797276327}
+  receive: {fileID: 560308097}
+--- !u!4 &1016134088
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1016134086}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 90.810265, y: 32.985863, z: 65.001526}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_RootOrder: 19
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1067533423
 GameObject:
   m_ObjectHideFlags: 0
@@ -1935,7 +2052,8 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 
+  m_text: "LITTLE ENDIAN ON V\xC4\xC4RIN P\xC4IN ELI JOS YRITT\xC4\xC4 \nKATTOO MINUS
+    BITTI\xC4 NI SE ON VIIMISESS\xC4\n[0000][0000][0000][1000]"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -2834,11 +2952,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 85e48dabe30bd2b4184642c2802dfc5f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  messagingMode: 0
   objectTypeID: 0
-  objectID: 0
-  hasUpdated: 0
+  objectInstanceID: 0
+  flagByteCount: 0
   currentSize: 0
+  prevActiveObject: {fileID: 0}
+  nextActiveObject: {fileID: 0}
   playerPrefabs: []
   networkedPrefabs: []
   maxActionsPerTick: 512
@@ -3230,13 +3349,11 @@ MonoBehaviour:
   sender: {fileID: 0}
   receiver: {fileID: 0}
   arry:
-    itemMessagingMode: 0
-    varyingSize: 0
+    sizeCategory: 0
     sizeInBytes: -1
     hasChanged: 0
-    flagIndex: 0
-    orderIndex: 0
     bytes: 
+    variableName: 
     owner: {fileID: 0}
     _value:
     - flag: M_MQ_01_completed
@@ -3246,13 +3363,11 @@ MonoBehaviour:
     - flag: MQ_01_BossKilled
       value: 0
   useri:
-    itemMessagingMode: 0
-    varyingSize: 0
+    sizeCategory: 0
     sizeInBytes: -1
     hasChanged: 0
-    flagIndex: 0
-    orderIndex: 0
     bytes: 
+    variableName: 
     owner: {fileID: 0}
     _value: 
   inttiTesti:

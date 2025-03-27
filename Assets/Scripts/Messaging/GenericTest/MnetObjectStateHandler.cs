@@ -15,14 +15,18 @@ public class MnetObjectStateHandler : MnetObject
     Miten luodaan unityssa
     Instantiate olis väliaikane mut demoon vois luoda super yksinkertasen poolin
      Jos vaan mnetobject ni serveri voi päivittää tai gamemanageri enmätie
+
+    MITEN OLLA YKSINKERTANEN JA NOPEE ELI VOIS ITEROIDA LÄPI?
      
      */
+
+    // !!!!!! TÄÄ ON MELKO VARMASTI IHAN PÄIN HELVETTIÄ NYT
     [SerializeField]
-    public IMnetInstancer objectInstancer;
-    public List<MnetObject> playerPrefabs;
-    public List<MnetObject> networkedPrefabs;       // prefabs must be in the same order on both the server and the client ends
-    private Queue<short> freeObjectIndex;           // Keeps track of free object IDs and hands them out on spawning and returns them on despawning
-    private List<MnetObject> activeObjects;
+    public IMnetInstancer objectInstancer;      // TARVITAAN JUU
+    public List<MnetObject> playerPrefabs;      // TURHAKE
+    public List<MnetObject> networkedPrefabs;       // TURHAKE. HANDLER VAA KOMMUNIKOI, KÄYTTÄJÄ MÄÄRÄÄ
+    private Queue<int> freeObjectIndex;           // Keeps track of free object IDs and hands them out on spawning and returns them on despawning
+    private List<MnetObject> activeObjects;         // Mikä helvetti tää on?
     public ushort maxActionsPerTick = 512;
 
     public MnettInstanceMessageSegments actions;
@@ -30,16 +34,16 @@ public class MnetObjectStateHandler : MnetObject
 
     private void Awake()
     {
-        actions = new MnettInstanceMessageSegments(this,maxActionsPerTick);
-        Setup(this);
+        //actions = new MnettInstanceMessageSegments(this,maxActionsPerTick);
+        //Setup();
 
         // Set up the ID index container
-        freeObjectIndex = new Queue<short>(ServerSettings.maxSyncedObjects);
+        freeObjectIndex = new Queue<int>(MnetSettings.maxSyncedObjects);
         // Object Handler is always ID number 0, followed by the players
-        int reservedSlots = ServerSettings.maxPlayerCount + 1;
+        int reservedSlots = MnetSettings.maxPlayerCount + 1;
         // Starting slots are reserverd for the spawner object and players objects.
         // Rest is assigned and reassigned to spawning/despawning objects
-        for (int i = reservedSlots; i < ServerSettings.maxSyncedObjects; i++)
+        for (int i = reservedSlots; i < MnetSettings.maxSyncedObjects; i++)
         {
             freeObjectIndex.Enqueue((short)i);
         }
@@ -49,7 +53,7 @@ public class MnetObjectStateHandler : MnetObject
         // Set messaging mode. If left to auto, instance messenger will override with its own
         foreach (MnetObject netObject in networkedPrefabs )
         {
-            if (netObject.messagingMode == MessagingDirection.Auto) netObject.messagingMode = messagingMode;
+            //// if (netObject.messagingMode == MessagingDirection.Auto) netObject.messagingMode = messagingMode;
         }
         /* pidetään objectit erossa messengeristä
         for (int i = 0; i < networkedPrefabs.Count; i++)
@@ -70,7 +74,7 @@ public class MnetObjectStateHandler : MnetObject
     public void HandlerSetup(List<MnetObject> activeObjects)
     {
         this.activeObjects = activeObjects;
-        objectID = 0;
+        objectInstanceID = 0;
         activeObjects.Add(this);
     }
 
@@ -81,9 +85,9 @@ public class MnetObjectStateHandler : MnetObject
         actions.numberOfActions++;
         newAction = actions.GetAndSet()[actions.numberOfActions - 1];
         newAction.action = ObjectInstanceAction.Spawn;
-        short objectInstanceID = freeObjectIndex.Dequeue();
+        int objectInstanceID = freeObjectIndex.Dequeue();
         newAction.objectID = objectInstanceID;
-        spawningObjectInstance.objectID = objectInstanceID;
+        spawningObjectInstance.objectInstanceID = objectInstanceID;
         newAction.objectType = spawningObjectInstance.objectTypeID;
         activeObjects.Add(spawningObjectInstance);
     }
@@ -93,14 +97,15 @@ public class MnetObjectStateHandler : MnetObject
         actions.numberOfActions++;
         newAction = actions.GetAndSet()[actions.numberOfActions - 1];
         newAction.action = ObjectInstanceAction.Despawn;
-        newAction.objectID = despawningObjectInstance.objectID;
+        newAction.objectID = despawningObjectInstance.objectInstanceID;
         newAction.objectType = 0;
-        freeObjectIndex.Enqueue(despawningObjectInstance.objectID);
+        freeObjectIndex.Enqueue(despawningObjectInstance.objectInstanceID);
         activeObjects.Remove(despawningObjectInstance);
     }
 
     public override void Tick()
     {
+        /*
         int actionCount = actions.numberOfActions;
         for (int i = 0; i < actionCount; i++)
         {
@@ -123,6 +128,7 @@ public class MnetObjectStateHandler : MnetObject
                     }
             }
         }
+        */
     }
 
 

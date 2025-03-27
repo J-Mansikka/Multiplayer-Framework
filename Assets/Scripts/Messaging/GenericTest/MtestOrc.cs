@@ -7,7 +7,7 @@ using System;
 
 public class MtestOrc : Mobject
 {
-    public MnetString orcName;
+    public MnetStringUnicode orcName;
     public Mfloat x;
     public Mfloat y;
     public Mint hitpoints;
@@ -18,7 +18,7 @@ public class MtestOrc : Mobject
     public Mint numberOfSons;
     public Mint address;
 
-    public MnetString[] strinkki;
+    public MnetStringUnicode[] strinkki;
 
     private void Awake()
     {

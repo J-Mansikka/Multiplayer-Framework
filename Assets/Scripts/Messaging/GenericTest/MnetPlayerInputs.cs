@@ -21,8 +21,8 @@ public class MnetPlayerInputs : MnetObject
         cc = GetComponent<CharacterController>();
         movement = new Vector3(0f,0f,0f);
         inputArray = new MnetBool();
-        variables = new MnetVariable[]{inputArray};
-        Setup(this);
+        //variables = new MnetVariable[]{inputArray};
+        //Setup();
         currentStep = updateStep;
     }
 

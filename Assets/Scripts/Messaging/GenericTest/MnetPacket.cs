@@ -1,29 +1,37 @@
 using System;
 using System.Buffers.Binary;
+using UnityEngine;
 
 public class MnetPacket
 {
     private byte[] _data;
-    public short currentLength;
+    public int currentLength;   // short
     public bool isActive;
+    public bool isFull;
     public int tickNumber;
     public MnetPacket nextPacket;
     public int extraPacketsInUpdate;
-    public short headerLength;
+    public int headerLength;    // short
 
     public byte[] Data
     {
         get { return _data; }
     }
 
+    public byte this[int key]
+    {
+        get { return _data[key]; }
+        set { _data[key] = value;}
+    }
+
     public int ServerPacketNumber
     {
-        get { return BinaryPrimitives.ReadInt32LittleEndian(_data.AsSpan(ServerSettings.headerServerPacketNumberPosition, 4)); }
+        get { return BinaryPrimitives.ReadInt32LittleEndian(_data.AsSpan(MnetSettings.headerServerPacketNumberPosition, 4)); }
     }
 
     public short ServerPacketLength
     {
-        get { return BinaryPrimitives.ReadInt16LittleEndian(_data.AsSpan(ServerSettings.headerServerSizePosition, 2)); }
+        get { return BinaryPrimitives.ReadInt16LittleEndian(_data.AsSpan(MnetSettings.headerServerSizePosition, 2)); }
     }
     public MessageType PacketType
     {
@@ -33,8 +41,8 @@ public class MnetPacket
 
     public MnetPacket(bool isServerPacket)
     {
-        _data = new byte[ServerSettings.maxPacketSize];
-        headerLength = isServerPacket ? ServerSettings.headerServerCombinedLength : (short)0;
+        _data = new byte[MnetSettings.maxPacketDataSize];
+        headerLength = isServerPacket ? MnetSettings.headerServerCombinedLength : 0;
         Reset();
     }
 
@@ -42,14 +50,15 @@ public class MnetPacket
     {
         currentLength = headerLength;
         isActive = false;
+        isFull = false;
         extraPacketsInUpdate = 0;
     }
 
     public void InitServerPacket()
     {
         isActive = true;
-        currentLength = BinaryPrimitives.ReadInt16LittleEndian(_data.AsSpan().Slice(ServerSettings.headerServerSizePosition, 2));
-        extraPacketsInUpdate = _data[ServerSettings.headerServerTickSplitInfoPosition + 1];
+        currentLength = BinaryPrimitives.ReadInt16LittleEndian(_data.AsSpan().Slice(MnetSettings.headerServerSizePosition, 2));
+        extraPacketsInUpdate = _data[MnetSettings.headerServerTickSplitInfoPosition + 1];
     }
 
     public void SetupServerPacket()
@@ -77,10 +86,10 @@ public class MnetPacket
     */
 
     // Typerä nimi.. GetRemainingSpace ?
-    public Span<byte> RemainingPacketSpace()
+    public Span<byte> AvailableSpace()
     {
         // Get remaining space on the buffer
-        return _data.AsSpan(currentLength..);//, ServerSettings.maxPacketSize - currentLength);
+        return _data.AsSpan(currentLength,MnetSettings.maxPacketDataSize - currentLength);//, ServerSettings.maxPacketSize - currentLength);
     }
 
     /*  OBJECTIT HALUAA VAAN SPANNIN
@@ -95,8 +104,11 @@ public class MnetPacket
     }
     */
 
-    public Span<byte> Span(int start = 0, int length = ServerSettings.maxPacketSize)
+    // Helppo tapa ottaa palanen tietystä kohtaa. Voi mennä yli mutta userin pitäis se huomioida kai?
+    public Span<byte> Span(int start = 0, int length = 0, string nimi = "")
     {
+            //Debug.Log(nimi+" ASKED FOR " + length + " BYTES STARTING AT " + start+" WITH REMAINDING SPACE "+(MnetSettings.maxPacketDataSize-currentLength));
+        if (length == 0) length = MnetSettings.maxPacketDataSize - currentLength;
         return _data.AsSpan(start, length);
     }
 

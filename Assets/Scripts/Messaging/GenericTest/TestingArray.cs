@@ -6,10 +6,6 @@ using UnityEngine;
 [Serializable]
 public class TestingArray : MnetVariableType<TestingNamedFlag[]>
 {
-    public TestingArray(MnetObject owner) : base(owner)
-    {
-    }
-
     public override void Deserialize(Span<byte> receivedBytes)
     {
         throw new NotImplementedException();
@@ -27,6 +23,5 @@ public class TestingArray : MnetVariableType<TestingNamedFlag[]>
 
     public override void Setup()
     {
-
     }
 }

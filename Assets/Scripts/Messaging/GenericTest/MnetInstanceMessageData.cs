@@ -8,8 +8,8 @@ public enum ObjectInstanceAction
 public class MnetInstanceMessageData
 {
     public ObjectInstanceAction action;
-    public short objectID;
-    public short objectType;
+    public int objectID;
+    public int objectType;
 
     public MnetInstanceMessageData()
     {

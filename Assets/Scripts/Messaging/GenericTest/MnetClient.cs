@@ -54,11 +54,11 @@ public class MnetClient : MonoBehaviour
 
     private void Awake()
     {
-        objectsBeingSynced = new List<MnetObject>(ServerSettings.maxSyncedObjects);
+        objectsBeingSynced = new List<MnetObject>(MnetSettings.maxSyncedObjects);
         //objectsBeingSynced = new MnetObject[ServerSettings.maxSyncedObjects];
-        playerBuffer = new MnetPacketBuffer(ServerSettings.clientPacketBufferSize, false);
+        playerBuffer = new MnetPacketBuffer(MnetSettings.clientPacketBufferSize, false);
         //// Mihin tallettaa world state bufferin koko? Vois olla sama ku max update size ja lisät settinkeihi
-        worldStateBuffer = new MnetPacketBuffer(ServerSettings.worldStatePacketBufferSize);
+        worldStateBuffer = new MnetPacketBuffer(MnetSettings.worldStatePacketBufferSize);
         connectionEstablisherPacket = new MnetPacket(false);
         objectHandler.HandlerSetup(objectsBeingSynced);
         MissingPacketNumbers = new HashSet<int>();
@@ -97,10 +97,10 @@ public class MnetClient : MonoBehaviour
             timeoutTimer = 0f;
             socket.Receive(connectionEstablisherPacket.Span());
             string messageReceived = Encoding.ASCII.GetString(connectionEstablisherPacket.Span(0, 16));
-            if (messageReceived == ServerSettings.messageHandlerHandshakeResponse)
+            if (messageReceived == MnetSettings.messageHandlerHandshakeResponse)
             {
-                Encoding.ASCII.GetBytes(ServerSettings.messageClientReadyToStart.AsSpan(), connectionEstablisherPacket.Span(0, 16));
-                for (int i = 0; i < ServerSettings.redundantCopiesHandshake; i++)
+                Encoding.ASCII.GetBytes(MnetSettings.messageClientReadyToStart.AsSpan(), connectionEstablisherPacket.Span(0, 16));
+                for (int i = 0; i < MnetSettings.redundantCopiesHandshake; i++)
                 {
                     socket.Send(connectionEstablisherPacket.Span());
                 }
@@ -111,7 +111,7 @@ public class MnetClient : MonoBehaviour
         {
             if (!ConnectionTimeoutCheck())
             {
-                Encoding.ASCII.GetBytes(ServerSettings.messageClientHandshake.AsSpan(), connectionEstablisherPacket.Span(0, 16));
+                Encoding.ASCII.GetBytes(MnetSettings.messageClientHandshake.AsSpan(), connectionEstablisherPacket.Span(0, 16));
                 localEP.Address.TryWriteBytes(connectionEstablisherPacket.Span(16, 4), out _);
                 BinaryPrimitives.WriteInt32LittleEndian(connectionEstablisherPacket.Span(20, 4), localEP.Port);
                 socket.Send(connectionEstablisherPacket.Span());
@@ -128,7 +128,7 @@ public class MnetClient : MonoBehaviour
             socket.Receive(connectionEstablisherPacket.Span());
             /// Jos ei oo tullu vastausta ni lähetetään serveriin viesti
             string messageReceived = Encoding.ASCII.GetString(connectionEstablisherPacket.Span(0, 16));
-            if (messageReceived == ServerSettings.messageServerNewConnectionResponse)
+            if (messageReceived == MnetSettings.messageServerNewConnectionResponse)
             {
                 IPAddress handlerIP = new IPAddress(connectionEstablisherPacket.Span(16, 4));
                 int newPort = BinaryPrimitives.ReadInt32LittleEndian(connectionEstablisherPacket.Span(20, 4));
@@ -142,7 +142,7 @@ public class MnetClient : MonoBehaviour
         {
             if (!ConnectionTimeoutCheck())
             {
-                Encoding.ASCII.GetBytes(ServerSettings.messageClientNewConnectionRequest.AsSpan(), connectionEstablisherPacket.Span(0, 16));
+                Encoding.ASCII.GetBytes(MnetSettings.messageClientNewConnectionRequest.AsSpan(), connectionEstablisherPacket.Span(0, 16));
                 localEP.Address.TryWriteBytes(connectionEstablisherPacket.Span(16, 4), out _);
                 BinaryPrimitives.WriteInt32LittleEndian(connectionEstablisherPacket.Span(20, 4), localEP.Port);
                 socket.Send(connectionEstablisherPacket.Span());
@@ -225,13 +225,13 @@ public class MnetClient : MonoBehaviour
 
         ///  FAster rate often
         /// Client tick. Move player with inputs, store inputs, send inputs
-        if (clientTimer > ServerSettings.clientSendRate)
+        if (clientTimer > MnetSettings.clientSendRate)
         {
             ClientUpdate();
-            clientTimer -= ServerSettings.clientSendRate;
+            clientTimer -= MnetSettings.clientSendRate;
         }
 
-        if (tickTimer > ServerSettings.serverSendRate)
+        if (tickTimer > MnetSettings.serverSendRate)
         {
             // Slower rate
             // World tick. Read packets and update all objects
@@ -243,7 +243,7 @@ public class MnetClient : MonoBehaviour
     private void ReceivePackets()
     {
         timeoutTimer++;
-        if(timeoutTimer > ServerSettings.clientTimeoutLimit)
+        if(timeoutTimer > MnetSettings.clientTimeoutTime)
         {
             connectionState = ConnectionState.Disconnected;
             return;
@@ -373,7 +373,7 @@ public class MnetClient : MonoBehaviour
             currentPacket = playerBuffer.Get(0);
         }
 
-        short dataRead = currentPacket.headerLength;
+        int dataRead = currentPacket.headerLength;
         int numberOfPacketsRemaining = currentPacket.extraPacketsInUpdate + 1;
 
         // EKA LOOP PAKETTTI MÄÄRÄ
@@ -464,27 +464,28 @@ public class MnetClient : MonoBehaviour
                 continue;
             }
             */
-            bool processingObject;
-            short sizeOfObject;
+            bool processingObject = true;
+            int sizeOfObject;
             if (getWorldState)
             {
                 processingObject = true;
-                sizeOfObject = activeObject.GetCurrentTotalSize();
+                //sizeOfObject = activeObject.UpdateCurrentSize();
             }
             else
             {
-                processingObject = activeObject.hasUpdated;
+                //processingObject = activeObject.hasUpdated;
                 sizeOfObject = activeObject.currentSize;
             }
 
             //// Niin kauan ku objeti tarvii kodin ni loopataan ja etitään pakettia johon mahtuu
             while (processingObject)
             {
+                sizeOfObject = 100;
                 //// Katotaa mahtuuko objekti edes pakettiin
-                if (sizeOfObject <= (ServerSettings.maxPacketSize - activePacket.currentLength))
+                if (sizeOfObject <= (MnetSettings.maxPacketDataSize - activePacket.currentLength))
                 {
                     //// Mahtuu eli otetaan paketista loput tavut ja kirjotetaan objekti niihin
-                    activeObject.WriteChanges(activePacket.RemainingPacketSpace(), getWorldState);
+                    //activeObject.OldWriteChanges(activePacket.AvailableSpace(), getWorldState);
                     activePacket.currentLength += sizeOfObject;
                     // Start over with next object if remaining
                     currentPacketID = 0;
@@ -552,24 +553,27 @@ public class MnetClient : MonoBehaviour
         activePacket = firstPacketInUpdate;
         for (int i = 0; i <= numberOfExtraPacketsNeeded; i++)
         {
+            /*
             Span<byte> packetNeedingHeader = activePacket.PacketHeader();
-            BinaryPrimitives.WriteInt32LittleEndian(packetNeedingHeader.Slice(ServerSettings.headerServerPacketNumberPosition, 4)
+            BinaryPrimitives.WriteInt32LittleEndian(packetNeedingHeader.Slice(MnetSettings.headerServerPacketNumberPosition, 4)
                 , nextExpectedPacketNumber++);//currentPacketNumber + i);
-            BinaryPrimitives.WriteInt16LittleEndian(packetNeedingHeader.Slice(ServerSettings.headerServerSizePosition, 2)
+            BinaryPrimitives.WriteInt16LittleEndian(packetNeedingHeader.Slice(MnetSettings.headerServerSizePosition, 2)
                 , activePacket.currentLength);
+            
             // Unity does not support all BinaryPrimitives' methods, so BitConverter is used as a substitute
-            BitConverter.TryWriteBytes(packetNeedingHeader.Slice(ServerSettings.headerServerTickTimePosition, 4), currentFrameTime);
-            BinaryPrimitives.WriteInt32LittleEndian(packetNeedingHeader.Slice(ServerSettings.headerServerTickNumberPosition, 4),
+            BitConverter.TryWriteBytes(packetNeedingHeader.Slice(MnetSettings.headerServerTickTimePosition, 4), currentFrameTime);
+            BinaryPrimitives.WriteInt32LittleEndian(packetNeedingHeader.Slice(MnetSettings.headerServerTickNumberPosition, 4),
                 currentFrameNumber);
 
             // If the frame needs multiple packets, add sequence number and total number of packets.
             // If singular packet, set values to zero.
-            packetNeedingHeader[ServerSettings.headerServerTickSplitInfoPosition] =
+            packetNeedingHeader[MnetSettings.headerServerTickSplitInfoPosition] =
                 (numberOfExtraPacketsNeeded > 0) ? (byte)i : (byte)0;
-            packetNeedingHeader[ServerSettings.headerServerTickSplitInfoPosition + 1] =
+            packetNeedingHeader[MnetSettings.headerServerTickSplitInfoPosition + 1] =
                 (numberOfExtraPacketsNeeded > 0) ? (byte)numberOfExtraPacketsNeeded : (byte)0;
             //buffer.Add(currentPacketNumber + i, packetNeedingHeader);
             activePacket = activePacket.nextPacket;
+            */
         }
         currentPacket.extraPacketsInUpdate = numberOfExtraPacketsNeeded;
         //// Jos oli normi päivitys ni tiedetään mistä jatkaaa seuraavassa rundissa
@@ -580,8 +584,8 @@ public class MnetClient : MonoBehaviour
     {
         if(connectionState == ConnectionState.Connected)
         {
-            connectionEstablisherPacket.Data[0] = (byte)MessageType.Disconnect;
-            Encoding.ASCII.GetBytes(ServerSettings.messageDisconnectByClient.AsSpan(), connectionEstablisherPacket.Span(1, 16));
+            connectionEstablisherPacket[0] = (byte)MessageType.Disconnect;
+            Encoding.ASCII.GetBytes(MnetSettings.messageDisconnectByClient.AsSpan(), connectionEstablisherPacket.Span(1, 16));
             for (int i = 0; i < 3; i++)
             {
                 socket.Send(connectionEstablisherPacket.Span(0, 17));

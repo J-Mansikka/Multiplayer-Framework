@@ -8,9 +8,13 @@ using UnityEngine;
 public class MnetOrc : MnetObject
 {
     public bool client;
-    public MnetString name;
+    public MnetStringUnicode name;
     public MnetInt level;
     public MnetInt exp;
+    public MnetStringUnicode longTest_1;
+    public MnetStringUnicode longTest_2;
+    public MnetStringUnicode longTest_3;
+    public MnetTestiSplit splittiBee;
 
     int fps = 0;
     float time = 0f;
@@ -20,8 +24,7 @@ public class MnetOrc : MnetObject
         //variables = new MnetInt[10];
         //int intFill = 1;
 
-
-        Setup(this);
+        Initialize();
 
         //for (int i = 0; i < 40; i++)
         //{

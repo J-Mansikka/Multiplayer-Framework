@@ -47,7 +47,7 @@ public class TESTmoveremote : MonoBehaviour
                 moveTime = timeStep.Dequeue();
                 //Debug.Log(moveTime);
                 start = transform.position;
-                Debug.Log(transform.position.y);
+                //Debug.Log(transform.position.y);
                 start = transform.position;
                 //velocity = speed * moveTime;
                 destination = start + newMove; //new Vector3(newMove.x, 0f, newMove.y) * velocity;

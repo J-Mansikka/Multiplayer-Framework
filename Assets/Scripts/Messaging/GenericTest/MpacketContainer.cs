@@ -10,7 +10,7 @@ public class MpacketContainer
 
     public MpacketContainer()
     {
-        packetData = new byte[ServerSettings.maxPacketSize];
+        packetData = new byte[MnetSettings.maxPacketDataSize];
     }
 
 }

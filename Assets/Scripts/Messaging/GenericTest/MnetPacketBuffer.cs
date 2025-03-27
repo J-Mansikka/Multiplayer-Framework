@@ -15,7 +15,7 @@ public class MnetPacketBuffer
 
 
 
-    public MnetPacketBuffer(int size = ServerSettings.serverPacketBufferSize, bool bufferIsServerType = true)
+    public MnetPacketBuffer(int size = MnetSettings.serverPacketBufferSize, bool bufferIsServerType = true)
     {
         //buffer = new MnetPacket[ServerSettings.packetBufferSize];
         //packetBuffer = new byte[ServerSettings.packetBufferSize][ServerSettings.maxPacketSize];

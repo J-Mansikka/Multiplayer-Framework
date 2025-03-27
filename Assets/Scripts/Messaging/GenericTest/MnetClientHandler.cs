@@ -63,14 +63,14 @@ public class MnetClientHandler
         */
         connectionEstablisherPacket = new MnetPacket(false);
         //incomingPacket = new byte[ServerSettings.maxPacketSize];
-        clientActionBuffer = new MnetPacketBuffer(ServerSettings.clientPacketBufferSize, false);
+        clientActionBuffer = new MnetPacketBuffer(MnetSettings.clientPacketBufferSize, false);
         lastTickReceived = 0;
         //incomingPacket = clientActionBuffer.Get(las);
         handlerEP = new IPEndPoint(localIP, localPort);
         remoteClientEP = new IPEndPoint(clientIP, clientPort);
         connectionToClient.Bind(handlerEP);
         connectionToClient.Connect(remoteClientEP);
-        timeoutTimer = ServerSettings.clientTimeoutLimit;
+        timeoutTimer = MnetSettings.clientTimeoutTime;
     }
 
     // 
@@ -81,12 +81,12 @@ public class MnetClientHandler
             connectionToClient.Receive(connectionEstablisherPacket.Span());
 
             string messageReceived = Encoding.ASCII.GetString(connectionEstablisherPacket.Span(0, 16));
-            if (messageReceived == ServerSettings.messageClientHandshake)
+            if (messageReceived == MnetSettings.messageClientHandshake)
             {
                 // Send back the response
-                Encoding.ASCII.GetBytes(ServerSettings.messageHandlerHandshakeResponse.AsSpan(), connectionEstablisherPacket.Span());
+                Encoding.ASCII.GetBytes(MnetSettings.messageHandlerHandshakeResponse.AsSpan(), connectionEstablisherPacket.Span());
 
-                for (int i = 0; i < ServerSettings.redundantCopiesHandshake; i++)
+                for (int i = 0; i < MnetSettings.redundantCopiesHandshake; i++)
                 {
                     connectionToClient.Send(connectionEstablisherPacket.Span(0, 16));
                 }
@@ -94,7 +94,7 @@ public class MnetClientHandler
                 /// Ei voi viel yhistää
                 //connectionState = ConnectionState.Connected;
             }
-            if (messageReceived == ServerSettings.messageClientReadyToStart)
+            if (messageReceived == MnetSettings.messageClientReadyToStart)
             {
                 connectionState = ConnectionState.SyncWorldState;
             }
@@ -163,7 +163,7 @@ public class MnetClientHandler
                         // Lähetä koko sync jos vielä on yhteys?
                         break;
                     case MessageType.Disconnect:
-                        if(Encoding.ASCII.GetString(incomingPacket.Span(1,16)) == ServerSettings.messageDisconnectByClient) { Disconnect(); }
+                        if(Encoding.ASCII.GetString(incomingPacket.Span(1,16)) == MnetSettings.messageDisconnectByClient) { Disconnect(); }
                         break;
                     default:
                         break;
@@ -173,7 +173,7 @@ public class MnetClientHandler
         else
         {
             timeoutTimer += time;
-            if (timeoutTimer > ServerSettings.clientTimeoutLimit)
+            if (timeoutTimer > MnetSettings.clientTimeoutTime)
             {
                 Disconnect();
             }
@@ -216,8 +216,8 @@ public class MnetClientHandler
         //connectionToClient.Shutdown(SocketShutdown.Both); /// Uskoisin ettei udp tarvii ku ei oo yhteyttä eikä streamia
         if (connectionState == ConnectionState.Connected)
         {
-            connectionEstablisherPacket.Data[0] = (byte)MessageType.Disconnect;
-            Encoding.ASCII.GetBytes(ServerSettings.messageDisconnectByServer.AsSpan(), connectionEstablisherPacket.Span(1, 16));
+            connectionEstablisherPacket[0] = (byte)MessageType.Disconnect;
+            Encoding.ASCII.GetBytes(MnetSettings.messageDisconnectByServer.AsSpan(), connectionEstablisherPacket.Span(1, 16));
             for (int i = 0; i < 3; i++)
             {
                 connectionToClient.Send(connectionEstablisherPacket.Span(0,17));
