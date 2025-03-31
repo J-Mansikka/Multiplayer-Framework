@@ -7,12 +7,10 @@ using UnityEngine;
 // This is some mad scientist stuff, but we can store the header length AS the category value and use it to increase an objects size accurately
 public enum VariableSize
 {
-    // !!!! Hyvä idea mut tunnistus vaatii sign biti eli dividesingle ei voi olla sama kokonen ku varies mut jos segment on 2 bytes ni sama koko dang
-    // !!!! Jos lisää numba (esim. 100) ni pitää poistaa joka kerta ku laskee sillä koon vittu vittu vittu vittus
     Static = 0,
-    Varies = MnetSettings.variableVaryingHeaderLength,
-    Dividable = MnetSettings.bytesReservedForSplitItemSize, // + MnetSettings.variableDividableHeaderAdjustment,
-    //DividableSplit = MnetSettings.variableDividableHeaderLength   // + MnetSettings.variableDividableHeaderAdjustment
+    Limited = MnetSettings.variableVaryingHeaderLength,
+    Splittable = MnetSettings.bytesReservedForSplitItemSize, // + MnetSettings.variableDividableHeaderAdjustment,
+    //DoNotUseSplitAutoDetection = MnetSettings.variableMultipartHeaderLength   // + MnetSettings.variableDividableHeaderAdjustment
 }
 [Serializable]
 public abstract class MnetVariable
@@ -35,6 +33,11 @@ public abstract class MnetVariable
     //Varies: Can change between updates, but is limited to the max size of the segment.
     //Dividable: Size varies and its total size can exceed the segment size,
     // meaning it can arrive in multiple parts in different segments and packets.
+    [Tooltip("Size category of the variable. \n" +
+        "STATIC: Does not change between updates and is limited by the segment size (E.g. 32-bit integer is always 4 bytes).\n" +
+        "LIMITED: Byte size can vary between updates, but is limited by the segment size (E.g. A string for chat messages with a 120 character limit).\n" +
+        "SPLITTABLE: Varying size that is not limited by the segment size and can be sent in pieces, even in multiple packets" +
+        " (E.g. Items that are too large to fit in a single segment or might grow past the segment limit).")]
     public VariableSize sizeCategory;
     [Tooltip("Size of the item as bytes. Set once in setup or changes between updates.")]
     public int sizeInBytes = 0;  // short
@@ -125,7 +128,7 @@ public abstract class MnetVariable
 
         // Split read and write methods require that the item returns the amount of bytes processed to the object,
         // so the header and data in this case
-        return MnetSettings.variableDividableHeaderLength + variableSegmentSize;
+        return MnetSettings.variableMultipartHeaderLength + variableSegmentSize;
     }
 
     public int WriteSplitSegment(Span<byte> outgoingBytes, int spaceRemaining)
@@ -199,7 +202,7 @@ public abstract class MnetVariable
         // ELI TOTAL, STARTPOS, KOKO
         // MUUTEN FLIP EKA BIT JA LISÄÄ KOKO EKAAN KAHTEEN TAVUUN
         // Set up space of the header (total size of the item + start position of the write + amount of bytes)
-        writePos = MnetSettings.variableDividableHeaderLength;
+        writePos = MnetSettings.variableMultipartHeaderLength;
         // Account of the space taken by the header
         spaceRemaining -= writePos;
         // The amount that we will write is limited by the space available or by the amount we have left to write

@@ -41,6 +41,6 @@ public class MnetStringUnicode : MnetVariableType<string>
             Value = "";
         }
         //
-        if(sizeCategory == VariableSize.Static) sizeCategory = VariableSize.Varies;
+        if(sizeCategory == VariableSize.Static) sizeCategory = VariableSize.Limited;
     }
 }

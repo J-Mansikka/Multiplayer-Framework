@@ -7,6 +7,7 @@ using UnityEngine;
 public abstract class MnetVariableType<T> : MnetVariable
 {
     [SerializeField]
+    [Tooltip("The value stored in this variable.")]
     protected T _value; // Current value of the item.
     //private T previous; // Previous value is stored so that it can be used in comparisons etc.
     //private T stored;   // Last valid value will be saved before extrapolation. Will be used in a rollback when lost packets finally arrive.

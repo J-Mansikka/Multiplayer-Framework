@@ -40,6 +40,6 @@ public class MnetTestiSplit : MnetVariableType<string>
             Value = "";
         }
         //
-        sizeCategory = VariableSize.Dividable;
+        sizeCategory = VariableSize.Splittable;
     }
 }

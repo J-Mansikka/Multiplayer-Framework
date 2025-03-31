@@ -6,19 +6,15 @@ using UnityEngine;
 
 public abstract class MnetMessager : MonoBehaviour
 {
-    // FAKE SHIT TO STOP ERRORS
-    float currentTickDuration = 1f;
-    int currentTickNumber = 0;
-    int currentPacketNumber = 0;
-    int lastTickSize = 0;
-    MnetObject[] objectsBeingSynced;
+
+
+
+
 
 
     private MnetPacketBuffer buffer;
-    private MnetPacketBuffer worldSnapshotBuffer;
+    private MnetPacketBuffer worldSnapshotBuffer; // TARVIIKO?
     //private MnetPacketBuffer worldStateBuffer;
-
-    //public MnetObject[] objectsBeingSynced;         // All the objects that are being syncronized
     public MnetObject[] incomingObjectData;     // TARVITAAN EHKÄ SE JOKA YHDISTÄÄ ARRAY JA LINKITYKSE?!
 
     //private int currentPacketNumber;
@@ -27,7 +23,13 @@ public abstract class MnetMessager : MonoBehaviour
     //private float currentTickDuration;
     //private int worldStateTickVersion;          // Current tick number of stored world snapshot in buffer, so we only do it once if multiple need it
     //private List<MnetPacket> writeBuffer;
-    private MnetPacket currentPacket;
+    protected MnetObject[] objectsBeingSynced;
+    protected MnetPacket EiOleOlemassaThisPaketti;
+    protected int latestPacketNumber;
+    protected int latestTickNumber;
+    protected float latestDeltaTime = 1f;
+    protected int latestTickSize = 0;
+    protected bool isServer;
 
     HashSet<short> objectsMarkedImportant;  // WHAT THE HELL IS THIS?!
 
@@ -70,6 +72,125 @@ public abstract class MnetMessager : MonoBehaviour
         */
     }
 
+    private void WriteRegularPacket(MnetPacketBuffer buffer)
+    {
+        // Q: Onko edes muita paketti tyyppejä? Eiks se oo tää aina, ainut ero et eka voidaa pakottaa 
+
+        // OTA BUFFERISTA EKA JA SITTE KU UUS PAKETTI TARVITAAN NI SIIRRÄ MYÖS FREE PACKETTI SEURAAVAA ET ON AINA VIIMINEN
+        MnetPacket firstPacketInUpdate = buffer.nextFreePacket;
+        MnetPacket curPacket = firstPacketInUpdate;
+        int extraPacketsNeeded = 0;
+        int currentPacketNumber = 0;
+        firstPacketInUpdate.isActive = true;    // ??? Nollaa sitte ku lähetty mut voi olla kirjottajal turha?
+        firstPacketInUpdate.Reset();
+        for (int i = 0; i < objectsBeingSynced.Length; i++)
+        {   // LOOP ALL OBJECTS
+            while (objectsBeingSynced[i].WriteChanges(curPacket))
+            {   // WHILE LOOP WRITE OBJET
+                if (currentPacketNumber == extraPacketsNeeded)
+                {   // NEW PACKET, INCREASE MAX IF NECESSARY
+                    extraPacketsNeeded++;
+                    curPacket.nextPacket.Reset();
+                }
+                currentPacketNumber++;
+                curPacket = curPacket.nextPacket;
+            }
+            // RESET TO FIRST PACKET WHEN DONE WITH OBJECT
+            curPacket = firstPacketInUpdate;
+            currentPacketNumber = 0;
+        }
+        // *CLIENT PACKET[TYPE 1b] miks ei packet numba? [LAST TICK RECEIVED 4b][SIZE 2b][INPUT DATA ?][PREVIOUS INPUTS...
+        // *SERVER PACKET[TYPE 1b][PACKET NUMBER 4b][TICK NUMBER 4b][PACKET SIZE 2b][TICK TIME 4b][SPLIT / TOTAL 2b][DATA X * Yb]
+        // Add headers
+        
+        for (int i = 0; i <= extraPacketsNeeded; i++)
+        {
+            // Yhteinen headeri luonti MnetToolsis vaikka tai voi if switch tehdä tähä et onks client vai servu
+            // Mitä pitää lähettää? Packet ja... ?
+            // Set type on first byte
+            curPacket.PacketType = MessageType.Regular;
+            // !! OLI METODI JO? curPacket[0] = (byte)MessageType.Regular;
+
+            // Packet number
+            MnetTools.IntToBytes(curPacket.Span
+                (MnetSettings.headerPacketNumberPosition,
+                MnetSettings.headerPacketNumberLength),
+                buffer.nextFreePacketNumber,
+                MnetSettings.headerPacketNumberLength);
+            // Latest tick number
+            MnetTools.IntToBytes(curPacket.Span
+                (MnetSettings.headerTickNumberPosition,
+                MnetSettings.headerTickNumberLength),
+                latestTickNumber,
+                MnetSettings.headerTickNumberLength);
+            // Packet size
+            MnetTools.IntToBytes(curPacket.Span
+                (MnetSettings.headerSizePosition,
+                MnetSettings.headerSizeLength),
+                curPacket.currentLength,
+                MnetSettings.headerSizeLength);
+            // Tick delta time
+            MnetTools.FloatToBytes(curPacket.Span
+                (MnetSettings.headerDeltaTimePosition,
+                MnetSettings.headerDeltaTimeLength),
+                latestDeltaTime);
+            /*  !!!! Jos kerra paketit järjestykses ja tiedetää mis alotetaa ni index on turha ja total count on vaa tarpee
+            // Multi packet index
+            MnetTools.IntToBytes(curPacket.Span
+                (MnetSettings.headerPacketCountInfoPosition,
+                MnetSettings.bytesReservedForMultiPacketSize),
+                i,
+                MnetSettings.bytesReservedForMultiPacketSize);
+            */
+            // Multi packet total count    
+            MnetTools.IntToBytes(curPacket.Span
+                (MnetSettings.headerPacketCountInfoPosition,
+                MnetSettings.headerPacketCountInfoLength),
+                extraPacketsNeeded,
+                MnetSettings.headerPacketCountInfoLength);
+
+
+            // !!!!! ONKO OK ETTÄ REGULAR PAKETISSA ON SAMA HEADERI SERVERIS JA CLIENTIS?
+            curPacket = curPacket.nextPacket;
+            buffer.nextFreePacketNumber++;
+            // latestPacketNumber++; Ottaaks numba messagerist vai bufferist? ehkä bufferist?
+        }
+        // At the end of the loop curPacket holds the next free packet that is not part of update, so we can store it for the buffer
+        buffer.nextFreePacket = curPacket;
+    }
+
+    public void ReadRegularPacket(MnetPacketBuffer buffer)
+    {
+        bool reading = true;
+        while (reading)
+        {
+            // 1: Ota paketti. 2: Luo loop sen mukaan mikä on pakettien lukumäärä. 3. Lue segmenttejä kunnes tila loppuu.
+            // 4. Merkkaa paketti vapaaks. 5. Toista kunnes paketit loppu. 6: Varmista että lopuksi packetToProcess on nexPacket viimisestä
+            int packetCount = buffer.packetToProcess.GetTotalPacketsInUpdate();
+            int packetDataAmount = buffer.packetToProcess.GetPacketSize();
+            int readPos = buffer.packetToProcess.headerLength;
+            int objectID = 0;
+            int objectSize = 0;
+            for(int i = 0; i <= packetCount; i++)
+            {
+                todo // MIKÄ OLIS VÄHITEN SOTKUNEN VERSIO TÄSTÄ? VOI EES TEHÄ KAIKKEE KERRALLA. JOS VAA TÄS KÄYTTÄIS MNETTOOLSII JA LIIKUTTAIS READPOS
+                int nextSegmentStart = buffer.packetToProcess.GetObjectInfo(readPos, out objectID, out objectSize);
+                objectsBeingSynced[objectID].ReadChanges(buffer.packetToProcess.Span(rea))
+
+                packetDataAmount -= 
+                buffer.packetToProcess = buffer.packetToProcess.nextPacket;
+            }
+        }
+    }
+
+    private void ResendPacket(int packetNumber)
+    {
+        // !! PITÄÄ EHA TEHDÄ NORMI SEND ET VÄHÄ YMMÄRTÄÄ buffer.Get(packetNumber)
+        // TODO
+        // VAIHDA TYPE (tavu0) incomingMissedPacket muotoo ja lähetä uudelleen
+        // Ei tarvii vaihtaa takas ku jos joku taas sitä pyytää ni sehä on samas tilantees
+    }
+
     private void CreatePacket(float frameTime, bool createFullSnapshot = false)
     {
         //int remainingBytes = 0;
@@ -89,10 +210,10 @@ public abstract class MnetMessager : MonoBehaviour
         //if (remainingBytes > ServerSettings.maxPacketSize) needToSplit = true;
 
         //int extraPackets = 0;
-        if (currentPacket == null)
+        if (EiOleOlemassaThisPaketti == null)
         {
-            currentPacket = buffer.Get(0);
-            currentPacket.isActive = true;
+            EiOleOlemassaThisPaketti = buffer.Get(0);
+            EiOleOlemassaThisPaketti.isActive = true;
         }
 
         MnetPacket activePacket;
@@ -102,12 +223,12 @@ public abstract class MnetMessager : MonoBehaviour
         if (createFullSnapshot)
         {
             firstPacketInUpdate = worldSnapshotBuffer.Get(0);
-            firstPacketInUpdate.PacketType = MessageType.FullWorldUpdate;
+            firstPacketInUpdate.PacketType = MessageType.Snapshot;
         }
         else
         {
-            firstPacketInUpdate = currentPacket;
-            firstPacketInUpdate.PacketType = MessageType.Normal;
+            firstPacketInUpdate = EiOleOlemassaThisPaketti;
+            firstPacketInUpdate.PacketType = MessageType.Regular;
         }
 
         activePacket = firstPacketInUpdate;
@@ -269,17 +390,17 @@ public abstract class MnetMessager : MonoBehaviour
         //    -#
         //	-OUT OF #
         //DATA
-        lastTickSize = numberOfExtraPacketsNeeded + 1;
+        latestTickSize = numberOfExtraPacketsNeeded + 1;
         activePacket = firstPacketInUpdate;
         for (int i = 0; i <= numberOfExtraPacketsNeeded; i++)
         {
             if (createFullSnapshot)
             {
-                activePacket.PacketType = MessageType.FullWorldUpdate;
+                activePacket.PacketType = MessageType.Snapshot;
             }
             else
             {
-                activePacket.PacketType = MessageType.Normal;
+                activePacket.PacketType = MessageType.Regular;
             }
             // !!! NÄYTTÄÄ VANHALTA MUT VOI OLLA ETTÄ VOI KÄYTTÄÄ VIEL
             /*
@@ -317,8 +438,8 @@ public abstract class MnetMessager : MonoBehaviour
             //buffer.Add(currentPacketNumber + i, packetNeedingHeader);
             activePacket = activePacket.nextPacket;
         }
-        currentPacket.extraPacketsInUpdate = numberOfExtraPacketsNeeded;
+        EiOleOlemassaThisPaketti.extraPacketsInUpdate = numberOfExtraPacketsNeeded;
         //// Jos oli normi päivitys ni tiedetään mistä jatkaaa seuraavassa rundissa
-        if (!createFullSnapshot) currentPacket = activePacket;
+        if (!createFullSnapshot) EiOleOlemassaThisPaketti = activePacket;
     }
 }

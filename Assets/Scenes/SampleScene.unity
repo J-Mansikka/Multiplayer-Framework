@@ -803,7 +803,7 @@ MonoBehaviour:
   nextActiveObject: {fileID: 0}
   client: 1
   name:
-    sizeCategory: 0
+    sizeCategory: 1
     sizeInBytes: 0
     hasChanged: 0
     bytes: 
@@ -827,7 +827,7 @@ MonoBehaviour:
     owner: {fileID: 0}
     _value: 0
   longTest_1:
-    sizeCategory: 0
+    sizeCategory: 1
     sizeInBytes: -1
     hasChanged: 0
     bytes: 
@@ -835,7 +835,7 @@ MonoBehaviour:
     owner: {fileID: 0}
     _value: 
   longTest_2:
-    sizeCategory: 0
+    sizeCategory: 1
     sizeInBytes: -1
     hasChanged: 0
     bytes: 
@@ -851,7 +851,7 @@ MonoBehaviour:
     owner: {fileID: 0}
     _value: 
   splittiBee:
-    sizeCategory: 0
+    sizeCategory: 2
     sizeInBytes: 0
     hasChanged: 0
     bytes: 

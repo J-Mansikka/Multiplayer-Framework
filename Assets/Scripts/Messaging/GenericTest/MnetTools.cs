@@ -46,6 +46,25 @@ public static class MnetTools
         }
     }
 
+    // Lis‰‰ float/double t‰nne
+    public static void FloatToBytes(Span<byte> bytes, float value)
+    {
+        BitConverter.TryWriteBytes(bytes, value);
+    }
+
+    public static float BytesToFloat(Span<byte> bytes)
+    {
+        return BitConverter.ToSingle(bytes);
+    }
+
+    public static void WriteServerHeader(Span<byte> headerBytes)
+    {
+        // TODO
+        // Voiks olla yhteinen? Eli server ja clienti ero vaan pituus? Kannataa erottaa toisistaan
+        // Muttta Messager packet write vois olla yhteinen ja sitte vaan kutsuis ehk‰ t‰n boolilla = isServerType?
+        // Tai ehk‰ pist‰‰ t‰n kautta kaikki eri tyyppiset? VOi olla aika monta eri mutta olis hyv‰ olla yhdes paikas..
+        // Koska turhaa clientin pohja versios olis vitun server packeettien luonti
+    }
     /*
 
     // This overloaded method works automatically by integer size, but should not be used by values that can change between builds (e.g. max item size)

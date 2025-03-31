@@ -497,12 +497,12 @@ public class MnetServer : MonoBehaviour
         if (createFullSnapshot)
         {
             firstPacketInUpdate = worldSnapshotBuffer.Get(0);
-            firstPacketInUpdate.PacketType = MessageType.FullWorldUpdate;
+            firstPacketInUpdate.PacketType = MessageType.Snapshot;
         }
         else
         {
             firstPacketInUpdate = currentPacket;
-            firstPacketInUpdate.PacketType = MessageType.Normal;
+            firstPacketInUpdate.PacketType = MessageType.Regular;
         }
 
         activePacket = firstPacketInUpdate;

@@ -12,6 +12,10 @@ public class MnetPacketBuffer
     //public int currentID = 0;
     public MnetPacket[] buffer;
     //private byte[][] packetBuffer;
+    public MnetPacket packetToProcess;  //
+    public MnetPacket nextFreePacket;   // 
+    public int nextFreePacketNumber;
+
 
 
 
@@ -38,6 +42,7 @@ public class MnetPacketBuffer
             packetBuffer[i] = new byte[ServerSettings.maxPacketSize];
         }
         */
+        nextFreePacketNumber = 0;
     }
 
     // DELETE THIS SHIT!

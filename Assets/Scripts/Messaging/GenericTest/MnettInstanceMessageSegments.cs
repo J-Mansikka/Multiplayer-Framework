@@ -50,6 +50,6 @@ public class MnettInstanceMessageSegments : MnetVariableType<MnetInstanceMessage
 
     public override void Setup()
     {
-        sizeCategory = VariableSize.Varies;
+        sizeCategory = VariableSize.Limited;
     }
 }

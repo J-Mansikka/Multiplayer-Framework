@@ -97,7 +97,7 @@ public class MnetObject : MonoBehaviour
             // !!!!! Korjaa sen ku nullattavat merkataa ekassa initialisoinnis (mnetbool, mnetstring etc)
             var.hasChanged = false;
             // If the variable can be split, we need to intialize its byte array that temporarily contains the data
-            if(var.sizeCategory > VariableSize.Varies)
+            if(var.sizeCategory > VariableSize.Limited)
             {
                 // Most likely the size will surpass one segment, but we can use it as a starting size since it grows automatically when needed
                 var.bytes = new byte[MnetSettings.bytesReservedForSegmentSize];
@@ -197,6 +197,15 @@ public class MnetObject : MonoBehaviour
             " Tick() has to be overridden and is required for all synced objects.");
     }
 
+    // The most basic version of preparing an object for a snapshot update would be to send all of its variables.
+    // In practical use this method should be overridden with a specific implementation per object for sane results.
+    public virtual void PrepareForSnapshot()
+    {
+        for (int i = 0; i < variables.Length; i++)
+        {
+            variables[i].hasChanged = true;
+        }
+    }
 
     // ! ! !! !  WRITE TESTIS KƒYT÷S VOIT POISTAA KOSKA KOKO TULEE MUUTOKSISTA
     public void DEBUGSize()
@@ -277,7 +286,7 @@ public class MnetObject : MonoBehaviour
             {
                 MnetVariable curVar = variables[i];
 
-                if (curVar.sizeCategory < VariableSize.Dividable)
+                if (curVar.sizeCategory < VariableSize.Splittable)
                 {
 
                     if (curVar.sizeCategory == VariableSize.Static)
@@ -430,10 +439,10 @@ public class MnetObject : MonoBehaviour
 
                     // !!! SERIALISOINTI BLOKKI MUT MIS VITUS KATOTAAN ETTƒ MAHTUU? YLEMPƒNƒ ON EARLY EXIT ELI
                     // KAIKKI MUU PAITSI SPLITTABLE TARKASTAA KOON EKA
-                    if (curVar.sizeCategory < VariableSize.Dividable) //!curVar.canBeSplit)
+                    if (curVar.sizeCategory < VariableSize.Splittable) //!curVar.canBeSplit)
                     {
                         // If the item size can change between updates, we need to add it before the serialized value
-                        if (curVar.sizeCategory == VariableSize.Varies) //curVar.varyingSize)
+                        if (curVar.sizeCategory == VariableSize.Limited) //curVar.varyingSize)
                         {
                             //MnetTools.IntegerToBytes(packet.AvailableSpace(), curVar.sizeInBytes);
                             MnetTools.IntToBytes(packet.Span(writePos,MnetSettings.bytesReservedForSegmentSize,curVar.variableName), curVar.sizeInBytes);
@@ -469,7 +478,7 @@ public class MnetObject : MonoBehaviour
                     }
                     else
                     {
-                        if (itemSize > MnetSettings.maxSegmentSize) currentSize += MnetSettings.variableDividableHeaderLength;
+                        if (itemSize > MnetSettings.maxSegmentSize) currentSize += MnetSettings.variableMultipartHeaderLength;
                         writePos += curVar.WriteSplitSegment(packet.Span(writePos, spaceRemaining, curVar.variableName), spaceRemaining);
                     }
                     // ! !!! ! Eiks n‰‰ pari vois pist‰‰ sitte ku kirjotetaan headeri ku kerra spaceRemaining kuitenki seuraa tilannetta yksist‰‰?

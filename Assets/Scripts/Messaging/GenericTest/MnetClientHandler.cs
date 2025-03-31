@@ -153,15 +153,15 @@ public class MnetClientHandler
 
                 switch(incomingPacket.PacketType)
                 {
-                    case MessageType.Normal:
+                    case MessageType.Regular:
                         // Liikuta ajalla ja ota paketti taltee
                         break;
-                    case MessageType.FailureMissingPackets:
+                    case MessageType.RequestMissedPacket:
                         // Kopioi listaa numerot
                         break;
-                    case MessageType.FailureDelay:
-                        // Lähetä koko sync jos vielä on yhteys?
-                        break;
+                    //case MessageType.:
+                    //    // Lähetä koko sync jos vielä on yhteys?
+                    //    break;
                     case MessageType.Disconnect:
                         if(Encoding.ASCII.GetString(incomingPacket.Span(1,16)) == MnetSettings.messageDisconnectByClient) { Disconnect(); }
                         break;

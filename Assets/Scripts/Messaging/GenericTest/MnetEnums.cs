@@ -22,12 +22,13 @@ public enum ConnectionState
 }
 
 // First byte on each packet. Notifies the recipient of the type of the message
-// Normal means regular update and that everything seems fine on the client side
-// FullWorldUpdate means the packets contain the full world snapshot so that the client might process if differently if necessary
-// FailureMissingPackets is used by the client to notify the handler when there are missing packets
-// FailureDelay can be used to notify that there was a detectable delay and that full snapshot might be required for a sync or a rollback
-// Disconnect with the proper disconnect message string can be used to notify the receiver that the connection will shut down
-public enum MessageType : Byte
+// ServerRegular: 
+// Snapshot: Snapshot is a server packet that contains all the data of the world. Used once when joining and if there is a short disconnect or desync
+// ServerMissedPacket: Server noticed a missing packet and needs the client to resend it. Should be rare since client packets already contain old ones
+//
+public enum MessageType : byte
 {
-    Normal = 1, FullWorldUpdate,  FailureMissingPackets, FailureDelay, Disconnect
+    // KOSKA YHTEINEN MESSAGER POHJA JA PAKETTEJA EI PALAUTAETA VOIDAA KÄYTTÄÄ SAMAA NUMEROA MOLEMPIIN SUUNTII
+    // ESIM. MISSEDPACKET VOI OLLA YHTEINEN JA REGULAR JA DISCONNECT JA EHKÄ JOKU TIMEOUT VIESTI
+    Regular = 1, Snapshot,  RequestMissedPacket, IncomingMissedPacket, Disconnect,
 }

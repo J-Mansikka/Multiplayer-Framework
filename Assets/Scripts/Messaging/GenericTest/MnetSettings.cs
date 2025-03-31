@@ -45,8 +45,8 @@ public static class MnetSettings
     public const int maxPacketDataSize = 1400; //1400;
     public const int minimumSpaceNeededForWriting = 20; // Lowest amount of space available that still allows a write attempt in segments and packets
     public const int maxSegmentSize = 255;  // If size stored in 1 byte, 255 bytes is the max size of a single segment
-    //public const int maxSizeForVariableSegment = 100; Ei oo käytös? Max koko on se mikä mahtuu segmenttii
-     // ???
+                                            //public const int maxSizeForVariableSegment = 100; Ei oo käytös? Max koko on se mikä mahtuu segmenttii
+                                            // ???
 
 
 
@@ -66,19 +66,21 @@ public static class MnetSettings
     //public const int headerServerTickSplitInfoLength = 2;
     //public const short headerServerCombinedLength = headerServerMessageTypeLength + headerServerPacketNumberLength
     //    + headerServerTickNumberLength + headerServerSizeLength + headerServerTickTimeLength + headerServerTickSplitInfoLength;
-    public const int headerServerMessageTypePosition = 0;
-    public const int headerServerMessageTypeLength = 1;
-    public const int headerServerPacketNumberPosition = headerServerMessageTypePosition + headerServerMessageTypeLength;
-    public const int headerServerPacketNumberLength = 4;
-    public const int headerServerTickNumberPosition = headerServerPacketNumberPosition + headerServerPacketNumberLength;
-    public const int headerServerTickNumberLength = 4;
-    public const int headerServerSizePosition = headerServerTickNumberPosition + headerServerTickNumberLength;
-    public const int headerServerSizeLength = 2;
-    public const int headerServerTickTimePosition = headerServerSizePosition + headerServerSizeLength;
-    public const int headerServerTickTimeLength = 4;
-    public const int headerServerTickSplitInfoPosition = headerServerTickTimePosition + headerServerTickTimeLength;
-    public const int headerServerTickSplitInfoLength = 2;
-    public const int headerServerCombinedLength = headerServerTickSplitInfoPosition + headerServerTickSplitInfoLength;// 1+4+4+2+4+2 = 17
+
+    // Header section positions and lengths. Length is the byte count of the item so headerSizeLength = 2 = int16 = max 32767
+    public const int headerMessageTypePosition = 0;
+    public const int headerMessageTypeLength = 1;
+    public const int headerPacketNumberPosition = headerMessageTypePosition + headerMessageTypeLength;
+    public const int headerPacketNumberLength = 4;
+    public const int headerTickNumberPosition = headerPacketNumberPosition + headerPacketNumberLength;
+    public const int headerTickNumberLength = 4;
+    public const int headerSizePosition = headerTickNumberPosition + headerTickNumberLength;
+    public const int headerSizeLength = 2;
+    public const int headerDeltaTimePosition = headerSizePosition + headerSizeLength;
+    public const int headerDeltaTimeLength = 4;
+    public const int headerPacketCountInfoPosition = headerDeltaTimePosition + headerDeltaTimeLength;
+    public const int headerPacketCountInfoLength = 2;
+    public const int headerCombinedLength = headerPacketCountInfoPosition + headerPacketCountInfoLength;// 1+4+4+2+4+2 = 17
     public const int headerClientTypePosition = 0;
     public const int headerClientLastProcessedTickPosition = 1; // 4
     public const int headerClientMissingPacketCountPosition = 5; // 1
@@ -95,7 +97,7 @@ public static class MnetSettings
     public const int objectHeaderIdAndSizeLength = bytesReservedForObjectID + bytesReservedForSegmentSize;
     public const int bytesReservedForSplitItemSize = 2;
     public const int variableVaryingHeaderLength = bytesReservedForSegmentSize;
-    public const int variableDividableHeaderLength = bytesReservedForSplitItemSize * 2 + bytesReservedForSegmentSize;
+    public const int variableMultipartHeaderLength = bytesReservedForSplitItemSize * 2 + bytesReservedForSegmentSize;
     public const int variableDividableHeaderAdjustment = 100;
 
     public const float clientSendRate = 0.015625f;  // 64hz

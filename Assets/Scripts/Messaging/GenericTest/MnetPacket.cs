@@ -8,7 +8,7 @@ public class MnetPacket
     public int currentLength;   // short
     public bool isActive;
     public bool isFull;
-    public int tickNumber;
+    //public int tickNumber;
     public MnetPacket nextPacket;
     public int extraPacketsInUpdate;
     public int headerLength;    // short
@@ -24,15 +24,45 @@ public class MnetPacket
         set { _data[key] = value;}
     }
 
-    public int ServerPacketNumber
+    public int GetPacketNumber()
     {
-        get { return BinaryPrimitives.ReadInt32LittleEndian(_data.AsSpan(MnetSettings.headerServerPacketNumberPosition, 4)); }
+        return MnetTools.BytesToInt(_data.AsSpan(MnetSettings.headerPacketNumberPosition, MnetSettings.headerPacketNumberLength)
+            ,MnetSettings.headerPacketNumberLength);
+        //get { return BinaryPrimitives.ReadInt32LittleEndian(_data.AsSpan(MnetSettings.headerPacketNumberPosition, 4)); }
     }
 
-    public short ServerPacketLength
+    public int GetTickNumber()
     {
-        get { return BinaryPrimitives.ReadInt16LittleEndian(_data.AsSpan(MnetSettings.headerServerSizePosition, 2)); }
+        return MnetTools.BytesToInt(_data.AsSpan(MnetSettings.headerTickNumberPosition, MnetSettings.headerTickNumberLength)
+            , MnetSettings.headerTickNumberLength);
     }
+
+    public int GetPacketSize()
+    {
+        return MnetTools.BytesToInt(_data.AsSpan(MnetSettings.headerSizePosition, MnetSettings.headerSizeLength)
+            , MnetSettings.headerSizeLength);
+        //get { return BinaryPrimitives.ReadInt16LittleEndian(_data.AsSpan(MnetSettings.headerSizePosition, 2)); }
+    }
+
+    public float GetDeltaTime()
+    {
+        return MnetTools.BytesToFloat(_data.AsSpan(MnetSettings.headerDeltaTimePosition, MnetSettings.headerDeltaTimeLength));
+    }
+
+    public int GetTotalPacketsInUpdate()
+    {
+        return MnetTools.BytesToInt(_data.AsSpan(MnetSettings.headerPacketCountInfoPosition, MnetSettings.headerPacketCountInfoLength)
+            , MnetSettings.headerPacketCountInfoLength);
+    }
+
+    public int GetObjectInfo(int readPos, out int objectID, out int objectSize)
+    {
+        objectID = MnetTools.BytesToInt(_data.AsSpan(readPos,MnetSettings.bytesReservedForObjectID), MnetSettings.bytesReservedForObjectID);
+        readPos += MnetSettings.bytesReservedForObjectID;
+        objectSize = MnetTools.BytesToInt(_data.AsSpan(readPos, MnetSettings.bytesReservedForSegmentSize), MnetSettings.bytesReservedForSegmentSize);
+        return readPos + objectSize;
+    }
+
     public MessageType PacketType
     {
         get { return (MessageType)_data[0]; }
@@ -42,7 +72,7 @@ public class MnetPacket
     public MnetPacket(bool isServerPacket)
     {
         _data = new byte[MnetSettings.maxPacketDataSize];
-        headerLength = isServerPacket ? MnetSettings.headerServerCombinedLength : 0;
+        headerLength = isServerPacket ? MnetSettings.headerCombinedLength : 0;
         Reset();
     }
 
@@ -57,8 +87,8 @@ public class MnetPacket
     public void InitServerPacket()
     {
         isActive = true;
-        currentLength = BinaryPrimitives.ReadInt16LittleEndian(_data.AsSpan().Slice(MnetSettings.headerServerSizePosition, 2));
-        extraPacketsInUpdate = _data[MnetSettings.headerServerTickSplitInfoPosition + 1];
+        currentLength = BinaryPrimitives.ReadInt16LittleEndian(_data.AsSpan().Slice(MnetSettings.headerSizePosition, 2));
+        extraPacketsInUpdate = _data[MnetSettings.headerPacketCountInfoPosition + 1];
     }
 
     public void SetupServerPacket()
