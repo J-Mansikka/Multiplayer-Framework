@@ -1,7 +1,9 @@
 using System;
+using System.Net;
 using System.Buffers.Binary;
 using System.Collections;
 using System.Collections.Generic;
+using System.Net.Sockets;
 using UnityEngine;
 
 public abstract class MnetMessager : MonoBehaviour
@@ -11,8 +13,8 @@ public abstract class MnetMessager : MonoBehaviour
 
 
 
-
-    private MnetPacketBuffer buffer;
+    [HideInInspector]
+    public MnetPacketBuffer genericBuffer;
     private MnetPacketBuffer worldSnapshotBuffer; // TARVIIKO?
     //private MnetPacketBuffer worldStateBuffer;
     public MnetObject[] incomingObjectData;     // TARVITAAN EHKÄ SE JOKA YHDISTÄÄ ARRAY JA LINKITYKSE?!
@@ -23,20 +25,31 @@ public abstract class MnetMessager : MonoBehaviour
     //private float currentTickDuration;
     //private int worldStateTickVersion;          // Current tick number of stored world snapshot in buffer, so we only do it once if multiple need it
     //private List<MnetPacket> writeBuffer;
-    protected MnetObject[] objectsBeingSynced;
+    public MnetObject[] objectsBeingSynced;
+    public Socket[] remoteConnections;
+    protected Socket socket;
     protected MnetPacket EiOleOlemassaThisPaketti;
     protected int latestPacketNumber;
     protected int latestTickNumber;
     protected float latestDeltaTime = 1f;
-    protected int latestTickSize = 0;
+    protected int timeoutCounter;
+    protected int VANHATICKSIZENOTINUSE = 0;
     protected bool isServer;
 
     HashSet<short> objectsMarkedImportant;  // WHAT THE HELL IS THIS?!
 
+    public void Setup()
+    {
+        genericBuffer = new MnetPacketBuffer();
+        latestPacketNumber = 0;
+        latestTickNumber = 0;
+        latestDeltaTime = 0f;
+        timeoutCounter = 0;
+    }
 
     public void DebugPrintPacket()
     {
-        int count = buffer.Get(0).extraPacketsInUpdate;
+        int count = genericBuffer.Get(0).extraPacketsInUpdate;
         //testPrint.ReadChanges(buffer.Get(0).Get().Slice(ServerSettings.headerCombinedLength + 4));
         //testPrint.DebugPrintOut();
 
@@ -72,12 +85,12 @@ public abstract class MnetMessager : MonoBehaviour
         */
     }
 
-    private void WriteRegularPacket(MnetPacketBuffer buffer)
+    public void WriteRegularPacket(MnetPacketBuffer buffer)
     {
         // Q: Onko edes muita paketti tyyppejä? Eiks se oo tää aina, ainut ero et eka voidaa pakottaa 
 
         // OTA BUFFERISTA EKA JA SITTE KU UUS PAKETTI TARVITAAN NI SIIRRÄ MYÖS FREE PACKETTI SEURAAVAA ET ON AINA VIIMINEN
-        MnetPacket firstPacketInUpdate = buffer.nextFreePacket;
+        MnetPacket firstPacketInUpdate = buffer.packetForWriting;
         MnetPacket curPacket = firstPacketInUpdate;
         int extraPacketsNeeded = 0;
         int currentPacketNumber = 0;
@@ -127,7 +140,7 @@ public abstract class MnetMessager : MonoBehaviour
             MnetTools.IntToBytes(curPacket.Span
                 (MnetSettings.headerSizePosition,
                 MnetSettings.headerSizeLength),
-                curPacket.currentLength,
+                curPacket.currentLength - curPacket.headerLength,
                 MnetSettings.headerSizeLength);
             // Tick delta time
             MnetTools.FloatToBytes(curPacket.Span
@@ -156,31 +169,206 @@ public abstract class MnetMessager : MonoBehaviour
             // latestPacketNumber++; Ottaaks numba messagerist vai bufferist? ehkä bufferist?
         }
         // At the end of the loop curPacket holds the next free packet that is not part of update, so we can store it for the buffer
-        buffer.nextFreePacket = curPacket;
+        buffer.packetForWriting = curPacket;
     }
 
     public void ReadRegularPacket(MnetPacketBuffer buffer)
     {
-        bool reading = true;
-        while (reading)
-        {
-            // 1: Ota paketti. 2: Luo loop sen mukaan mikä on pakettien lukumäärä. 3. Lue segmenttejä kunnes tila loppuu.
-            // 4. Merkkaa paketti vapaaks. 5. Toista kunnes paketit loppu. 6: Varmista että lopuksi packetToProcess on nexPacket viimisestä
-            int packetCount = buffer.packetToProcess.GetTotalPacketsInUpdate();
-            int packetDataAmount = buffer.packetToProcess.GetPacketSize();
-            int readPos = buffer.packetToProcess.headerLength;
-            int objectID = 0;
-            int objectSize = 0;
-            for(int i = 0; i <= packetCount; i++)
-            {
-                todo // MIKÄ OLIS VÄHITEN SOTKUNEN VERSIO TÄSTÄ? VOI EES TEHÄ KAIKKEE KERRALLA. JOS VAA TÄS KÄYTTÄIS MNETTOOLSII JA LIIKUTTAIS READPOS
-                int nextSegmentStart = buffer.packetToProcess.GetObjectInfo(readPos, out objectID, out objectSize);
-                objectsBeingSynced[objectID].ReadChanges(buffer.packetToProcess.Span(rea))
 
-                packetDataAmount -= 
-                buffer.packetToProcess = buffer.packetToProcess.nextPacket;
+        // 1: Ota paketti. 2: Luo loop sen mukaan mikä on pakettien lukumäärä. 3. Lue segmenttejä kunnes tila loppuu.
+        // 4. Merkkaa paketti vapaaks. 5. Toista kunnes paketit loppu. 6: Varmista että lopuksi packetToProcess on nexPacket viimisestä
+        int packetCount = buffer.packetForProcessing.GetTotalPacketsInUpdate();
+        int packetDataAmount = buffer.packetForProcessing.GetPacketSize();
+        int readPos = buffer.packetForProcessing.headerLength;
+
+        int objectID = 0;
+        int objectSize = 0;
+        for(int i = 0; i <= packetCount; i++)
+        {
+            // Talleta koko mutta muuten vaan bytetoint ja readpos + offset ja lopuks readpos + id + size +data.length
+            while (packetDataAmount > 0)
+            {
+                buffer.packetForProcessing.GetObjectInfo(readPos, out objectID, out objectSize);
+                readPos = readPos + MnetSettings.bytesReservedForObjectID + MnetSettings.bytesReservedForSegmentSize;
+                objectsBeingSynced[objectID].ReadChanges(buffer.packetForProcessing.Span(readPos, objectSize));
+                readPos += objectSize;
+                packetDataAmount -= (MnetSettings.bytesReservedForObjectID + MnetSettings.bytesReservedForSegmentSize + objectSize);
+            }
+            buffer.packetForProcessing.Reset();
+            buffer.packetForProcessing = buffer.packetForProcessing.nextPacket;
+            packetDataAmount = buffer.packetForProcessing.GetPacketSize();
+            readPos = buffer.packetForProcessing.headerLength;
+        }
+    }
+
+    public void SendPacketsInTick()
+    {
+        /*
+         Paketit bufferin process kohdasta ja yksi vastaan ottaja. Vai tehdäkö array eli clienti array olis length 1 hmmm
+        IPEndpoint vai joku muu? Iha socketti? Pitää kattoo mikä metodi paras ni sen mukaan parametrit
+        Mitä jos socket on parametri? Koska siin on jo ipendpoint plus muut asetukset
+        
+         1. Looppi remoteConnectioneille
+        2. Ota paketti määrä
+        3. Loop jossa paketti määrän mukaan vaan lähetät ja otat seuraavan packet = packet.nextPacket
+
+        !!!! VOIsKO LOOPATA NIIN ETTÄ LOPUS PACKETORPROCESS JÄIS OIKEESEE KOHTAA SEuraAVAA TICKIÖ VARTE?
+         */
+        int packetCount = genericBuffer.packetForProcessing.GetTotalPacketsInUpdate();
+        // Store the position of the first packet in update so we can return to it while looping
+        MnetPacket firstPacketInUpdate = genericBuffer.packetForProcessing;
+        for (int i = 0; i < remoteConnections.Length; i++)
+        {
+            // We reset the position here instead of a the end of the loop.
+            // This way packetToProcess ends up as the first packet in the next update when the loops are done.
+            genericBuffer.packetForProcessing = firstPacketInUpdate;
+            for (int p = 0; p <= packetCount; p++)
+            {
+                remoteConnections[i].Send(genericBuffer.packetForProcessing.WholePacket());
+                genericBuffer.packetForProcessing = genericBuffer.packetForProcessing.nextPacket;
             }
         }
+    }
+
+    // Send on vähä sama ku lukeminen eli ei packetToProcess ni tää olis iha vaa otetaa kaikki taltee llman miettimist
+    // SIIS muista että on prosessontoin kohta bufferissa ja kirjotus kohta ni tää on kirjotus kohta
+    public bool ListenForIncoming(Socket socket, MnetPacketBuffer buffer)
+    {
+        /*
+         Tää ihan karusti ottaa paketit vastaan ja tietää että mikä pitäis olla seuraava numba.
+        Tähä saattaa löytyy vanha koodia missä on paketti vaihtelut sun muut valmiina. Pitäiskö olla ihan erikseen joku temp packet
+        joho tallettaa mutta sitte data pitäis siirtää ni ehkä se vanha koodi ratkasi tän ongelma
+        !!! MITE TUNNISTAA MIsSED PaCKET?
+        Idea 1: Ota alotus kohta (eka paketti) ylös. Jos tulee isompi ni ota erillisee inttii ylös.
+        Ku receive on valmis, looppaa luvuilla paketit läpi ja merkkkaa viel puuttuvat ylös. Ehkä vois heti tehä missed sendi
+        
+        Eli tilanteet:
+        OIKEA SAAPUI: Älä tee mitään, vaihda vaan seuraavaan pakettiin ja nextPacketNumber++
+        VANHA SAAPUI: Älä tee mitään.
+        UUDEMPI SAAPUI: SWAP JA MERKKAA ET PITÄÄ TARKASTAA TILANNE JA LOOPPAA JÄLKEE
+
+        1. While loop (socket.available > 0), else timeouttimer++
+        2. Talleta oikeeseen kohtaan.
+        3. Jos isompi luku ku odotettu, ota taltee ja tee packet.swap. Merkkaa isActive et ku haetaan seuraava ni skipata valmiit
+        4. Jos pienempi (vanhempi) ni älä tee mitään ja talleta seuraava saapuva vaan nykyse paketin päälle.
+        Puuttuvat ei voi olla vanhempia koska tää jää jumiin odottaa nykystä mikä ei taida olla paras ratkasu?
+        5. 
+         */
+
+        if (socket.Available > 0)
+        {
+            MnetPacket firstPacketToWriteOn = buffer.packetForWriting;
+            bool checkForMissedPackets = false;
+            while(socket.Available > 0)
+            {
+                // OLisKO PAREMPi OLLA VAAN byte[] receiveBuffer mihi talletattaa ja swapata data sen mukaan mihin menee?
+                // Ehkä sit selkeempi tsekata et onko vanhaa dataa, puuttuvaa dataa, oikee data vai liian uutta dataa.
+                // Eli sillo tsekata isActive ja jos ei ollu ni missingpackets--? Luku paketti ei hirvee kaukana et jos saapuu
+                // tosi vanha paketti ni voi olla että oli jo isactive = false koska oli luettu.
+                socket.Receive(buffer.packetForWriting.WholePacket());
+
+                if(buffer.packetForWriting.GetPacketNumber() == buffer.nextFreePacketNumber)
+                {
+                    buffer.nextFreePacketNumber++;
+                    buffer.packetForWriting = buffer.packetForWriting.nextPacket;
+                }
+                else if(buffer.packetForWriting.GetPacketNumber() > buffer.nextFreePacketNumber)
+                {
+                    checkForMissedPackets = true;
+                    MnetPacket newerPacket = buffer.Get(buffer.packetForWriting.GetPacketNumber());
+                    newerPacket.SwapData(buffer.packetForWriting);
+                    // JOs ei Puuttuvia nI NEXT FREE PACKET NuMBER = mis mennää
+                }
+            }
+
+            if (checkForMissedPackets) // && firstPacket.isActive tai siis siihe nyt on talletettu)
+            {
+                // LOOPPAA ALUsTA LÄPI JA OTA TYLÖS PUUUTTUVAT TAI SUORAAN SANOISIN VOI PISTÄÄ RESEND PYYNNÖN
+            }
+            return true;
+        }
+        else
+        {
+            // If we did not receive anything on this attempt, return false !!! JOS FALSE Ni KUtsuJa LISÄÄ TIMEOUT TIMERII
+            return false;
+        }
+
+    }
+
+    private void RECEIVEvANHACLIENTVERSIO()
+    {
+        timeoutTimer++;
+        if (timeoutTimer > MnetSettings.maxTimeoutCount)
+        {
+            connectionState = ConnectionState.Disconnected;
+            return;
+        }
+
+        while (socket.Available > 0)
+        {
+            timeoutTimer = 0f;
+            socket.Receive(currentPacket.WholePacket());
+            int packetNumber = currentPacket.GetPacketNumber();
+            /// jos väärä ni swappia ja huomioi puuttuva?
+            if (packetNumber != nextExpectedPacketNumber)
+            {
+                MnetPacket correctPacket = worldStateBuffer.Get(packetNumber);
+                currentPacket.SwapData(correctPacket);
+                correctPacket.InitServerPacket();
+                MissingPacketNumbers.Add(nextExpectedPacketNumber);
+                if (connectionState == ConnectionState.Connected)
+                {
+                    connectionState = ConnectionState.MissingPackets;
+                }
+                missedPackets++;
+                /*
+                short packetLength = currentPacket.ServerPacketLength;
+                MnetPacket correctPacket = worldStateBuffer.Get(packetNumber);
+                byte[] dataSwap = correctPacket.Data;
+                correctPacket.SwapBytes(currentPacket.Data, packetLength);
+                */
+            }
+            else
+            {
+                // Check if client had missed this packet earlier
+                if (connectionState == ConnectionState.MissingPackets)
+                {
+                    bool intermediatePacketsReceived = true;
+                    MnetPacket checkPacket = currentPacket;
+                    for (int i = 1; i < missedPackets; i++)
+                    {
+                        checkPacket = checkPacket.nextPacket;
+                        if (!checkPacket.isActive)
+                        {
+                            intermediatePacketsReceived = false;
+                            break;
+                        }
+                    }
+                    if (intermediatePacketsReceived)
+                    {
+                        connectionState = ConnectionState.Reconcile;
+                    }
+                    // Jos saavutettiin reconcile tila ni missedPackets = 0
+                }
+                // jos kaikki meni nappii ni samal voidaan ottaa pois missing listasta jos tuli
+                // 
+                // If the packet was missing, remove it from the list
+                MissingPacketNumbers.Remove(packetNumber);
+                currentPacket.InitServerPacket();
+                // napataa seuraava odotettu paketti (voi olla että on täytettyjä jos tuli väärässä järjstykses)
+                while (currentPacket.isActive)
+                {
+                    nextExpectedPacketNumber++;
+                    currentPacket = currentPacket.nextPacket;
+                }
+            }
+
+            // tsekkaa jos on jo olemassa
+            /// Jos oikee ni prosessoi
+        }
+
+        // Mikä vitu tää on?
+        if (MissingPacketNumbers.Count > 0) { }
     }
 
     private void ResendPacket(int packetNumber)
@@ -212,7 +400,7 @@ public abstract class MnetMessager : MonoBehaviour
         //int extraPackets = 0;
         if (EiOleOlemassaThisPaketti == null)
         {
-            EiOleOlemassaThisPaketti = buffer.Get(0);
+            EiOleOlemassaThisPaketti = genericBuffer.Get(0);
             EiOleOlemassaThisPaketti.isActive = true;
         }
 
@@ -390,7 +578,7 @@ public abstract class MnetMessager : MonoBehaviour
         //    -#
         //	-OUT OF #
         //DATA
-        latestTickSize = numberOfExtraPacketsNeeded + 1;
+        VANHATICKSIZENOTINUSE = numberOfExtraPacketsNeeded + 1;
         activePacket = firstPacketInUpdate;
         for (int i = 0; i <= numberOfExtraPacketsNeeded; i++)
         {

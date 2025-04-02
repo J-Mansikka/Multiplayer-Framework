@@ -12,8 +12,8 @@ public class MnetPacketBuffer
     //public int currentID = 0;
     public MnetPacket[] buffer;
     //private byte[][] packetBuffer;
-    public MnetPacket packetToProcess;  //
-    public MnetPacket nextFreePacket;   // 
+    public MnetPacket packetForProcessing;  //
+    public MnetPacket packetForWriting;   // 
     public int nextFreePacketNumber;
 
 
@@ -43,6 +43,8 @@ public class MnetPacketBuffer
         }
         */
         nextFreePacketNumber = 0;
+        packetForWriting = buffer[0];
+        packetForProcessing = buffer[0];
     }
 
     // DELETE THIS SHIT!

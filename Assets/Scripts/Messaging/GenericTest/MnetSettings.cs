@@ -32,7 +32,7 @@ public static class MnetSettings
 
     public const byte newClientHandshakeIdentifier = 204;
     public const int redundantCopiesHandshake = 3;
-    public const float clientTimeoutTime = 60f;
+    public const float maxTimeoutTime = 30f;
 
     public const int maxPlayerCount = 8;
     public const int maxSyncedObjects = 512;

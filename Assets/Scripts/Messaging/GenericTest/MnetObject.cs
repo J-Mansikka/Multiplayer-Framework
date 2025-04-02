@@ -445,7 +445,7 @@ public class MnetObject : MonoBehaviour
                         if (curVar.sizeCategory == VariableSize.Limited) //curVar.varyingSize)
                         {
                             //MnetTools.IntegerToBytes(packet.AvailableSpace(), curVar.sizeInBytes);
-                            MnetTools.IntToBytes(packet.Span(writePos,MnetSettings.bytesReservedForSegmentSize,curVar.variableName), curVar.sizeInBytes);
+                            MnetTools.IntToBytes(packet.Span(writePos,MnetSettings.bytesReservedForSegmentSize), curVar.sizeInBytes);
                             writePos += MnetSettings.bytesReservedForSegmentSize;
                                 //curVar.Serialize(packet.Span(writePos, curVar.sizeInBytes));
                                 //print(curVar.variableName+" SIZE: "+curVar.sizeInBytes);
@@ -463,7 +463,7 @@ public class MnetObject : MonoBehaviour
                         }
                         //else
                         //{
-                        curVar.Serialize(packet.Span(writePos, curVar.sizeInBytes, curVar.variableName));
+                        curVar.Serialize(packet.Span(writePos, curVar.sizeInBytes));
                         //}
 
                         // ! ! !!  Eiks splitti tarvii oman serialisointi metodin samanlai ku on toi vitun yhdist‰minen?
@@ -479,7 +479,7 @@ public class MnetObject : MonoBehaviour
                     else
                     {
                         if (itemSize > MnetSettings.maxSegmentSize) currentSize += MnetSettings.variableMultipartHeaderLength;
-                        writePos += curVar.WriteSplitSegment(packet.Span(writePos, spaceRemaining, curVar.variableName), spaceRemaining);
+                        writePos += curVar.WriteSplitSegment(packet.Span(writePos, spaceRemaining), spaceRemaining);
                     }
                     // ! !!! ! Eiks n‰‰ pari vois pist‰‰ sitte ku kirjotetaan headeri ku kerra spaceRemaining kuitenki seuraa tilannetta yksist‰‰?
                     ///print("SIZE: " + currentSize + ", SPACE: " + spaceRemaining + ", LENGTH: " + packet.currentLength + ", WRITTEN: " + bytesWritten);
@@ -562,13 +562,13 @@ public class MnetObject : MonoBehaviour
                 //BinaryPrimitives.WriteInt16LittleEndian(packet.Span(headerPos, 2), objectInstanceID);
 
                 writePos = headerPos;
-                MnetTools.IntToBytes(packet.Span(writePos, MnetSettings.bytesReservedForObjectID,"ID WRITE"), objectInstanceID, MnetSettings.bytesReservedForObjectID);
+                MnetTools.IntToBytes(packet.Span(writePos, MnetSettings.bytesReservedForObjectID), objectInstanceID, MnetSettings.bytesReservedForObjectID);
                 writePos += MnetSettings.bytesReservedForObjectID;
                 // ! !! Tƒƒ PERSE ON KAI SITTEN KOKO JOKA ON LY÷ LUKKOON TAVUKS. TAITAA OLLA TEMP KOODIA TAAS J÷SSES
                 // !! ! ! EI SAA OLLA VAAN YHEN TAVUN MUUTOS JOS SEGMENTTI MUUTETAAN ISOMMAKS
                 //packet[headerPos + 2] = (byte)(packet.currentLength - headerPos);
                 int amountWritten = packet.currentLength - headerPos - MnetSettings.objectHeaderIdAndSizeLength;
-                MnetTools.IntToBytes(packet.Span(writePos, MnetSettings.bytesReservedForSegmentSize,amountWritten.ToString()), amountWritten);
+                MnetTools.IntToBytes(packet.Span(writePos, MnetSettings.bytesReservedForSegmentSize), amountWritten);
                 //print("ADDIGN HEADER! ID: "+MnetTools.BytesToInt(packet.Span(headerPos),MnetSettings.bytesReservedForObjectID)+". SIZE: "+(packet.currentLength-headerPos)+".");
                 //!!! LUE ALA writePos += MnetSettings.bytesReservedForSegmentSize;
                 /* !!! Eiks bit flagit aseteta suoraan pakettiin ku vari talletetaan? Kyl mun mielest ni fuck this osa
@@ -579,7 +579,7 @@ public class MnetObject : MonoBehaviour
                 */
             }
 
-            print("HEADER ID: "+MnetTools.BytesToInt(packet.Span(headerPos, 2,"ID READ"), 2));
+            print("HEADER ID: "+MnetTools.BytesToInt(packet.Span(headerPos, 2), 2));
             print("HEADER SIZE: " + packet[headerPos+MnetSettings.bytesReservedForObjectID]);
             print("HEADER FLAGS: " + Convert.ToString(packet[headerPos+MnetSettings.objectHeaderIdAndSizeLength],toBase:2));
             for (int i = 4; i < 25;i++)

@@ -55,12 +55,12 @@ public class MnetPacket
             , MnetSettings.headerPacketCountInfoLength);
     }
 
-    public int GetObjectInfo(int readPos, out int objectID, out int objectSize)
+    public void GetObjectInfo(int readPos, out int objectID, out int objectSize)
     {
         objectID = MnetTools.BytesToInt(_data.AsSpan(readPos,MnetSettings.bytesReservedForObjectID), MnetSettings.bytesReservedForObjectID);
-        readPos += MnetSettings.bytesReservedForObjectID;
-        objectSize = MnetTools.BytesToInt(_data.AsSpan(readPos, MnetSettings.bytesReservedForSegmentSize), MnetSettings.bytesReservedForSegmentSize);
-        return readPos + objectSize;
+        objectSize = MnetTools.BytesToInt(_data.AsSpan(readPos + MnetSettings.bytesReservedForObjectID,
+            MnetSettings.bytesReservedForSegmentSize), MnetSettings.bytesReservedForSegmentSize);
+        Debug.Log("INFO IS: ID " + objectID + " SIZE " + objectSize);
     }
 
     public MessageType PacketType
@@ -76,6 +76,8 @@ public class MnetPacket
         Reset();
     }
 
+    // !!!! Mit‰ jos ollaa luettu ihan ok mut jostain syyst‰ tarvittais uudestaan?
+    // Millo k‰ytet‰‰n isActive? Resetoidaanko ku kirjotetaan vaan?
     public void Reset()
     {
         currentLength = headerLength;
@@ -135,7 +137,7 @@ public class MnetPacket
     */
 
     // Helppo tapa ottaa palanen tietyst‰ kohtaa. Voi menn‰ yli mutta userin pit‰is se huomioida kai?
-    public Span<byte> Span(int start = 0, int length = 0, string nimi = "")
+    public Span<byte> Span(int start = 0, int length = 0)
     {
             //Debug.Log(nimi+" ASKED FOR " + length + " BYTES STARTING AT " + start+" WITH REMAINDING SPACE "+(MnetSettings.maxPacketDataSize-currentLength));
         if (length == 0) length = MnetSettings.maxPacketDataSize - currentLength;

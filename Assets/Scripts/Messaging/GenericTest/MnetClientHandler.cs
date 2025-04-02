@@ -70,7 +70,7 @@ public class MnetClientHandler
         remoteClientEP = new IPEndPoint(clientIP, clientPort);
         connectionToClient.Bind(handlerEP);
         connectionToClient.Connect(remoteClientEP);
-        timeoutTimer = MnetSettings.clientTimeoutTime;
+        timeoutTimer = MnetSettings.maxTimeoutCount;
     }
 
     // 
@@ -173,7 +173,7 @@ public class MnetClientHandler
         else
         {
             timeoutTimer += time;
-            if (timeoutTimer > MnetSettings.clientTimeoutTime)
+            if (timeoutTimer > MnetSettings.maxTimeoutCount)
             {
                 Disconnect();
             }

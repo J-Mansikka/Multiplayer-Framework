@@ -6,12 +6,16 @@ using UnityEngine;
 public class TESTturha : MonoBehaviour
 {
     public bool fuckingGo;
+    public bool testPackets;
     public MnetObject send;
     public MnetObject receive;
     private MnetPacket[] paketit;
+    public MnetMessager messageSender;
+    public MnetMessager messageReceiver;
 
     void Start()
     {
+
         paketit = new MnetPacket[10];
 
     }
@@ -19,6 +23,24 @@ public class TESTturha : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
+        if (testPackets)
+        {
+            foreach(MnetObject obj in messageSender.objectsBeingSynced)
+            {
+                obj.ForceSizeTesti();
+            }
+            messageSender.WriteRegularPacket(messageSender.genericBuffer);
+            messageSender.genericBuffer.packetForProcessing = messageSender.genericBuffer.buffer[0];
+            /*
+            for (int i = 0; i < 50; i++)
+            {
+                print(messageSender.buffer.buffer[0][i]);
+            }
+            */
+            messageReceiver.ReadRegularPacket(messageSender.genericBuffer);
+            testPackets = false;
+        }
+
         if(fuckingGo)
         {
              // ! !! MITES TOI WRITE TOIMIKAA? IHA VAA CURRENTLENGTH KASVAA KUNNES TÄYNNÄ?
@@ -60,15 +82,13 @@ public class TESTturha : MonoBehaviour
                 readFrom = paketti.headerLength;
                 while (packetSize > 0)
                 {
-                    print("R_ID: " + MnetTools.BytesToInt(paketti.Span(readFrom, 2, "READ R_ID"), 2));
-                    print("R_SIZE: " + paketti[readFrom + MnetSettings.bytesReservedForObjectID]);
                     readFrom += 2;  // Skip ID
                     segmentLength = paketti[readFrom];
                     readFrom += 1; // Skip size
                     //print("PROCESSING FLAGS " + System.Convert.ToString(paketti[readFrom], toBase: 2));
                     //print("LENGTH " + segmentLength);
                     packetSize -= segmentLength+3;
-                    receive.ReadChanges(paketti.Span(readFrom, segmentLength,"RECEIVE READ"));
+                    receive.ReadChanges(paketti.Span(readFrom, segmentLength));
                     readFrom += segmentLength;
                 }
                 

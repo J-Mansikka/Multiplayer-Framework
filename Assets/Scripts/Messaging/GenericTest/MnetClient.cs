@@ -243,7 +243,7 @@ public class MnetClient : MonoBehaviour
     private void ReceivePackets()
     {
         timeoutTimer++;
-        if(timeoutTimer > MnetSettings.clientTimeoutTime)
+        if(timeoutTimer > MnetSettings.maxTimeoutCount)
         {
             connectionState = ConnectionState.Disconnected;
             return;
@@ -253,7 +253,7 @@ public class MnetClient : MonoBehaviour
         {
             timeoutTimer = 0f;
             socket.Receive(currentPacket.WholePacket());
-            int packetNumber = currentPacket.GetPacketNumber;
+            int packetNumber = currentPacket.GetPacketNumber();
             /// jos v‰‰r‰ ni swappia ja huomioi puuttuva?
             if (packetNumber != nextExpectedPacketNumber)
             {
