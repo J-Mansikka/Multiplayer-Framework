@@ -2,598 +2,237 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using System.Net.Sockets;
-using System.Threading;
 using System.Net;
-using System;
-using System.Buffers.Binary;
-using System.Text;
-using Unity.VisualScripting;
+using UnityEngine.SceneManagement;
 
-public class MnetClient : MonoBehaviour
+public class MnetClient : MnetMessager
 {
-    [Tooltip("Object Handler which handles spawn/despawn messaging")]
-    public MnetObjectStateHandler objectHandler;
-    [Tooltip("Client ip address as a string (E.g. 127.0.0.1)")]
-    public string clientIPaddress;
-    [Tooltip("Port used to receive messages")]
-    public int clientPort;
-    [Tooltip("Server ip address as a string (E.g. 127.0.0.1)")]
-    public string serverAddress;
-    [Tooltip("Port used to send messages")]
-    public int serverPort;
-    private Socket socket;
-
-
-    private MnetPacketBuffer playerBuffer;
-    private MnetPacketBuffer worldStateBuffer;
-
-    public List<MnetObject> objectsBeingSynced;
-
-    private int nextExpectedPacketNumber;   // Saapuva (tyhjä slotti)
-    private int nextPacketNumberToProcess;  // Seuraava luettava paketti numero
-    private int lastTickSize;
-    private int currentFrameNumber;
-    private float currentFrameTime;
-    private MnetPacket currentPacket;
-
-    private MnetPacket connectionEstablisherPacket;
-    private ConnectionState connectionState;
-    private IPEndPoint localEP;
-    private IPEndPoint handlerEP;
-    //private float sendPlayerPacket;
-
-    private HashSet<int> MissingPacketNumbers;
-
-    private float clientTimer;
-    private float tickTimer;
-    private float timeoutTimer;
-    private int missedPackets;
-
-    private int writeHead;
-
+    public string localAddress = "192.168.1.2";
+    public int port = 28501;
+    public string serverAddress = "192.168.1.2";
+    public int serverPort = 28500;
+    //private MnetConnection clientConnection;
+    public bool sendTest;
 
     private void Awake()
     {
-        objectsBeingSynced = new List<MnetObject>(MnetSettings.maxSyncedObjects);
-        //objectsBeingSynced = new MnetObject[ServerSettings.maxSyncedObjects];
-        playerBuffer = new MnetPacketBuffer(MnetSettings.clientPacketBufferSize, false);
-        //// Mihin tallettaa world state bufferin koko? Vois olla sama ku max update size ja lisät settinkeihi
-        worldStateBuffer = new MnetPacketBuffer(MnetSettings.worldStatePacketBufferSize);
-        connectionEstablisherPacket = new MnetPacket(false);
-        objectHandler.HandlerSetup(objectsBeingSynced);
-        MissingPacketNumbers = new HashSet<int>();
+        manager = GetComponent<MnetInstanceManager>();
+        worldBuffer = new MnetPacketBuffer(Mnet.clientPacketBufferSize);
+        IPEndPoint localEP = new IPEndPoint(IPAddress.Parse(localAddress), port);
+        clientConnection = new MnetConnection(-1, localEP, Mnet.serverPacketBufferSize);
+        messenger = new MnetPacket(false);
+        worldObjectIDs = new HashSet<int>();
+        activeConnections = new List<MnetConnection>();
+        messenger = new MnetPacket(false);
+        worldObjects = new MnetObject[Mnet.maxSyncedObjects];
+        manager.SetupInstanceManager(worldObjects, Ownership.Remote);
 
-        clientTimer = 0f;
-        tickTimer = 0f;
-        timeoutTimer = 0f;
-        nextExpectedPacketNumber = 0;
-        writeHead = 0;
+        // !!! DEBUG
+        //connection.remoteObjects = new MnetObject[10];
+        //connection.remoteObjects[1] = worldObjects[1];
+        //worldObjects[1] = null;
     }
 
-    private void Start()
+    public void StartClient()
     {
-
-        ActivateSocket();
-        //StartServer();
-
-        currentFrameTime = Time.realtimeSinceStartup;
-        //ServerTest();
-
-    }
-
-    public void ActivateSocket()
-    {
-        socket = new Socket(SocketType.Dgram, ProtocolType.Udp);
-        localEP = new IPEndPoint(IPAddress.Parse(clientIPaddress), clientPort);
-        socket.Bind(localEP);
-        socket.Blocking = false;
-        socket.Connect(IPAddress.Parse(serverAddress), serverPort);
-    }
-
-    public void HandshakeWithHandler()
-    {
-        if (socket.Available > 0)
-        {
-            timeoutTimer = 0f;
-            socket.Receive(connectionEstablisherPacket.Span());
-            string messageReceived = Encoding.ASCII.GetString(connectionEstablisherPacket.Span(0, 16));
-            if (messageReceived == MnetSettings.messageHandlerHandshakeResponse)
-            {
-                Encoding.ASCII.GetBytes(MnetSettings.messageClientReadyToStart.AsSpan(), connectionEstablisherPacket.Span(0, 16));
-                for (int i = 0; i < MnetSettings.redundantCopiesHandshake; i++)
-                {
-                    socket.Send(connectionEstablisherPacket.Span());
-                }
-                connectionState = ConnectionState.SyncWorldState;
-            }
-        }
-        else
-        {
-            if (!ConnectionTimeoutCheck())
-            {
-                Encoding.ASCII.GetBytes(MnetSettings.messageClientHandshake.AsSpan(), connectionEstablisherPacket.Span(0, 16));
-                localEP.Address.TryWriteBytes(connectionEstablisherPacket.Span(16, 4), out _);
-                BinaryPrimitives.WriteInt32LittleEndian(connectionEstablisherPacket.Span(20, 4), localEP.Port);
-                socket.Send(connectionEstablisherPacket.Span());
-            }
-        }
-    }
-
-    private void RequestConnection()
-    {
-        /// Eka tsekkaa onko jo serveri vastannu ja jos nii ni päivitetää connection ja break out
-        if (socket.Available > 0)
-        {
-            timeoutTimer = 0f;
-            socket.Receive(connectionEstablisherPacket.Span());
-            /// Jos ei oo tullu vastausta ni lähetetään serveriin viesti
-            string messageReceived = Encoding.ASCII.GetString(connectionEstablisherPacket.Span(0, 16));
-            if (messageReceived == MnetSettings.messageServerNewConnectionResponse)
-            {
-                IPAddress handlerIP = new IPAddress(connectionEstablisherPacket.Span(16, 4));
-                int newPort = BinaryPrimitives.ReadInt32LittleEndian(connectionEstablisherPacket.Span(20, 4));
-
-                IPEndPoint handlerEP = new IPEndPoint(handlerIP, newPort);
-                socket.Connect(handlerEP);
-                connectionState = ConnectionState.Handshake;
-            }
-        }
-        else
-        {
-            if (!ConnectionTimeoutCheck())
-            {
-                Encoding.ASCII.GetBytes(MnetSettings.messageClientNewConnectionRequest.AsSpan(), connectionEstablisherPacket.Span(0, 16));
-                localEP.Address.TryWriteBytes(connectionEstablisherPacket.Span(16, 4), out _);
-                BinaryPrimitives.WriteInt32LittleEndian(connectionEstablisherPacket.Span(20, 4), localEP.Port);
-                socket.Send(connectionEstablisherPacket.Span());
-            }
-        }
-    }
-
-    public void AddMissingPacketRequest()
-    {
-
-    }
-
-    public bool ConnectionTimeoutCheck()
-    {
-        timeoutTimer += Time.deltaTime;
-        if (timeoutTimer > 0f)
-        {
-            connectionState = ConnectionState.Disconnected;
-            return true;
-        }
-        return false;
-    }
-
-    // REGULAR TICK
-    // EXTRAPOLATED TICK
-    // RECONCILIATION TICK
-    private void Tick()
-    {
-        /*
-         *  EXTRAPOLAATIOSSA EI VOI TIETÄÄ MITKÄ OBJECTIT EDES TEKEE JOTAIN JA MITÄ NE TEKEE
-         *  PITÄÄ MYÖS VARMISTAA ETTEI ENNUSTA OBJECTEJA JOIDEN DATA ON TULLU PERILLE
-         *  ELI ONKO OBJECTISSA JOKU BOOL TAI JOKU MIKÄ FLIPPAIS JOS ON TEHNY JUTTUNSA
-         *  PITÄISKÖ VAAN HYLÄTÄ PAKETIT ELI EXTRAPOLOIDA KOKO TICK? MUTTA ENEMMÄN VÄÄRÄSSÄ SE ON KU YHEN PAKETIN EXTRAPOLAATIO.
-         * 
-         *  OBJECT.HASCHANGED!!! ELI JOS PUUTTUU NI EROTA JA KÄSITTELE SITTE KU KAIKKI LÖYTYVÄT ON TEHTY
-         *  SITTE VAAN LOPUILLE INTERPOLOINTI
-         *  
-         *  MITES LUETTU (CLIENT) PUOLI HASCHANGED TOIMINTO EDES ON?
-         *  PITÄÄKÖ LISÄTÄ OBJECTEIHIN INT LASTUPDATEDINTICKNUMBER ?
-         *  !!!! HASCHANGED RIITTÄÄ KOSKA TICK SÄÄTÄÄ FALSEKS ELI PAKETTEJA LUETTAESSA PÄIVITETYT ON TRUE JA LOPUT EXTRAPOLOIDAA
-         */
-        
-        if (connectionState == ConnectionState.Reconcile)
-        {
-            // WILD SHIT HERE. MANY UPDATES AT THE SAME TIME
-            // ELI LUE PAKETTI + TICK ALL REPEAT KUNNES KÄYTY KAIKKI LÄPI
-        }
-        else
-        {            // AVAA PAKETIT JA SERIALISOI
-            // JOS PUUTTUU NI KOHTA TALTEEN JA EXTRAPOLAATIO KÄYNTIIN
-
-
-            // REG
-
-            foreach (MnetObject obj in objectsBeingSynced)
-            {
-                obj.Tick();
-            }
-        }
-
-
-        
+        print("CLIENT: STARTING");
+        //connection.ChangeConnection(new IPEndPoint(IPAddress.Parse("192.168.1.2"), 28500));
+        online = true;
+        HandshakeRequest();
     }
 
     private void Update()
     {
-        // Client side aikalailla sama
-        // Check and get world packets
-        // tickTimer
-        // tick
-        // inputTimer
-        // Get input
-        // Apply input
-        // Store input
-        // inputSendTimer
-        // Send input + old inputs
-
-        clientTimer += Time.deltaTime;
-        tickTimer += Time.deltaTime;
-
-        ///  FAster rate often
-        /// Client tick. Move player with inputs, store inputs, send inputs
-        if (clientTimer > MnetSettings.clientSendRate)
-        {
-            ClientUpdate();
-            clientTimer -= MnetSettings.clientSendRate;
-        }
-
-        if (tickTimer > MnetSettings.serverSendRate)
-        {
-            // Slower rate
-            // World tick. Read packets and update all objects
-            ReceivePackets();
-            Tick();
-        }
-    }
-
-    private void ReceivePackets()
-    {
-        timeoutTimer++;
-        if(timeoutTimer > MnetSettings.maxTimeoutCount)
-        {
-            connectionState = ConnectionState.Disconnected;
-            return;
-        }
-
-        while(socket.Available > 0)
-        {
-            timeoutTimer = 0f;
-            socket.Receive(currentPacket.WholePacket());
-            int packetNumber = currentPacket.GetPacketNumber();
-            /// jos väärä ni swappia ja huomioi puuttuva?
-            if (packetNumber != nextExpectedPacketNumber)
-            {
-                MnetPacket correctPacket = worldStateBuffer.Get(packetNumber);
-                currentPacket.SwapData(correctPacket);
-                correctPacket.InitServerPacket();
-                MissingPacketNumbers.Add(nextExpectedPacketNumber);
-                if (connectionState == ConnectionState.Connected)
-                {
-                    connectionState = ConnectionState.MissingPackets;
-                }
-                missedPackets++;
-                /*
-                short packetLength = currentPacket.ServerPacketLength;
-                MnetPacket correctPacket = worldStateBuffer.Get(packetNumber);
-                byte[] dataSwap = correctPacket.Data;
-                correctPacket.SwapBytes(currentPacket.Data, packetLength);
-                */
-            }
-            else
-            {
-                // Check if client had missed this packet earlier
-                if(connectionState == ConnectionState.MissingPackets)
-                {
-                    bool intermediatePacketsReceived = true;
-                    MnetPacket checkPacket = currentPacket;
-                    for (int i = 1; i < missedPackets; i++)
-                    {
-                        checkPacket = checkPacket.nextPacket;
-                        if (!checkPacket.isActive)
-                        {
-                            intermediatePacketsReceived = false;
-                            break;
-                        }
-                    }
-                    if (intermediatePacketsReceived)
-                    {
-                        connectionState = ConnectionState.Reconcile;
-                    }
-                    // Jos saavutettiin reconcile tila ni missedPackets = 0
-                }
-                // jos kaikki meni nappii ni samal voidaan ottaa pois missing listasta jos tuli
-                // 
-                // If the packet was missing, remove it from the list
-                MissingPacketNumbers.Remove(packetNumber);
-                currentPacket.InitServerPacket();
-                // napataa seuraava odotettu paketti (voi olla että on täytettyjä jos tuli väärässä järjstykses)
-                while (currentPacket.isActive)
-                {
-                    nextExpectedPacketNumber++;
-                    currentPacket = currentPacket.nextPacket;
-                }
-            }
-            
-            // tsekkaa jos on jo olemassa
-            /// Jos oikee ni prosessoi
-        }
-
-        // Mikä vitu tää on?
-        if(MissingPacketNumbers.Count > 0) { }
-    }
-
-    private void UpdatePlayer()
-    {
-
-    }
-
-    private void CreatePlayerPacket()
-    {
-
-    }
-
-    /// tarvitaanko client puolella world state sync? Vois ol eeeeehkä kätevä?
-    private void ClientUpdate()
-    {
-        switch (connectionState)
-        {
-            case ConnectionState.Connected:
-                UpdatePlayer();
-                CreatePlayerPacket();
-                break;
-            case ConnectionState.Handshake:
-                HandshakeWithHandler();
-                break;
-            case ConnectionState.ContactServer:
-                RequestConnection();
-                break;
-            default:
-                break;
-        }
-    }
-
-    private void ReadPacket()
-    {
-
-        // Tsekkaa montako? Eli loopataanko täällä vai luetaanko ulkopuolelta pala kerrallaan? Tää olis paras paikka ku voi lukee splitin
-
-        // Pituus tarvitaan, voidaan tallettaa suoraan pakettiin.. tai tehäänkö receivissä? Ei kai turhaan
-
-        // SERVER PACKET [TYPE 1b][PACKET NUMBER 4b][TICK NUMBER 4b][PACKET SIZE 2b][TICK TIME 4b][SPLIT / TOTAL 2b][DATA X * Yb]
-
-        // Eka tyyppi, eli jos sielt tulis vaikka disconnect ni lakkautetaan prosessit?
-        // Packet numero turhake?
-        // Koko tärkee
-        // Tick turhake? Last successful vastaus?
-        // Time otetaan ylös floattiin kai
-        // splitit tärkee
-        // Data tietysti tärkee
-
-        // DATA: Eli while remaining -> object numero, koko -> object read
-        // Sit ku loppuu ni loppuu
-
-
-        // DEBUG SHIT REMVOE
-        if (currentPacket == null)
-        {
-            currentPacket = playerBuffer.Get(0);
-        }
-
-        int dataRead = currentPacket.headerLength;
-        int numberOfPacketsRemaining = currentPacket.extraPacketsInUpdate + 1;
-
-        // EKA LOOP PAKETTTI MÄÄRÄ
-        // SISÄLLÄ LADOTAA OBJEKTEIHIN KUNNES KOKO ON TÄYNNÄ
-        // pitäiskö currentlenght vähentyä? Tai vara sinne uus?
-        // EXTRAPOLAATIO ELI CHECK ET KAIKKI ON ACTIVE JA JOS EI OO NI MERKATAA EXTRA
-        while(numberOfPacketsRemaining > 0 ) 
-        {
-        
-        }
-
-        
-        // EXTRAPOLAATIO UPDATE EIKS TÄÄ PITÄNY OLLA TICKISSÄ VITTU
-
-        // KU LUETTU NI NOLLAA
-        currentPacket.Reset();
-    }
-
-    private void CreatePacket(float frameTime, bool getWorldState = false)
-    {
-        //int remainingBytes = 0;
-        // Turha alotus check?
-        //bool needToSplit = false;
-
-
-
-        // TARVIIKO NÄITÄ MIHINKÄÄN?
-        //
         /*
-        for (int i = 0; i < objects.Length; i++)
+        if(sendTest)
         {
-            remainingBytes += objects[i].currentSize;
+            sendTest = false;
+            System.Text.Encoding.Unicode.GetBytes("Hello world!", messenger.AllBytes());
+            connection.socket.SendTo(messenger.Data, connection.remoteEP);
         }
         */
-        //if (remainingBytes > ServerSettings.maxPacketSize) needToSplit = true;
-
-        //int extraPackets = 0;
-        if (currentPacket == null)
-        {
-            currentPacket = playerBuffer.Get(0);
-            currentPacket.isActive = true;
-        }
-
-        MnetPacket activePacket;
-        MnetPacket firstPacketInUpdate;
-
-        //// Säädetään mihin bufferiin/toimintoon nää kuuluu, joko world state päivitys tai normi
-        if (getWorldState)
-        {
-            firstPacketInUpdate = worldStateBuffer.Get(0);
-        }
-        else
-        {
-            firstPacketInUpdate = currentPacket;
-        }
-
-        activePacket = firstPacketInUpdate;
-        int currentPacketID = 0;
-        int numberOfExtraPacketsNeeded = 0;
-        //int currentObjectIndex = 0;
-        //MnetObject activeObject;
-        //int bufferRemaining = writeBuffer.Count;
-        //
-        //
-        //
-        //
+    }
 
 
-        int infLoop = 1000;
+    private void LateUpdate()
+    {
 
         /*
-        foreach (MnetPacket packet in writeBuffer)
+         Aika paljoo samaa rakennetta -> kuuntele -> lue viesti -> tee jotain -> siirry askel eteenpäin          
+         */
+        // CONNECTED
+        if (online)
         {
-            packet.Reset();
-        }
-        */
-
-        //// Napataan seuraava objecti jos on olemassa ja seuraavassa loopissa käsitellään
-        //while (currentObjectIndex < objectsBeingSynced.Length)
-        foreach (MnetObject activeObject in objectsBeingSynced)
-        {
-            //activeObject = objectsBeingSynced[currentObjectIndex];
-            /*
-            //// TYhjä slot, NEXT!
-            if(activeObject == null)
+            if (gameIsRunning && clientConnection.state >= ConnectionState.Desynced)
             {
-                currentObjectIndex++;
-                continue;
+                NetworkUpdate();
             }
-            */
-            bool processingObject = true;
-            int sizeOfObject;
-            if (getWorldState)
-            {
-                processingObject = true;
-                //sizeOfObject = activeObject.UpdateCurrentSize();
-            }
+            // CONNECTING
             else
             {
-                //processingObject = activeObject.hasUpdated;
-                sizeOfObject = activeObject.currentSize;
-            }
+                // Siirrä nää omaan metodiin? Vois vähä selkeytttää ku on metodi mil on nimi eikä sotkis updatee ku toi perus on noin pieni
 
-            //// Niin kauan ku objeti tarvii kodin ni loopataan ja etitään pakettia johon mahtuu
-            while (processingObject)
-            {
-                sizeOfObject = 100;
-                //// Katotaa mahtuuko objekti edes pakettiin
-                if (sizeOfObject <= (MnetSettings.maxPacketDataSize - activePacket.currentLength))
+                if (clientConnection.socket.Available > 0)
                 {
-                    //// Mahtuu eli otetaan paketista loput tavut ja kirjotetaan objekti niihin
-                    //activeObject.OldWriteChanges(activePacket.AvailableSpace(), getWorldState);
-                    activePacket.currentLength += sizeOfObject;
-                    // Start over with next object if remaining
-                    currentPacketID = 0;
-                    //// Objecti mahtu niin palataan ekaan pakettiin ja alotetaan alusta
-                    activePacket = firstPacketInUpdate;
-                    processingObject = false;
-                }
-                else
-                {
-                    currentPacketID++;
-                    activePacket = activePacket.nextPacket;
-                    if (currentPacketID > numberOfExtraPacketsNeeded)
+
+                    //int readPos = 0;
+                    messenger.Reset();
+                    clientConnection.socket.Receive(messenger.AllBytes());
+                    //string receivedMessage = System.Text.Encoding.ASCII.GetString(messenger.Span(0, 16));
+                    //readPos += 16;
+                    //string receivedMessage = System.Text.Encoding.ASCII.GetString(messenger.Read(Mnet.messageLength));
+                    string receivedMessage = messenger.ReadMessage();
+                    print("CLIENT: Message Received = " + receivedMessage);
+                    print("CLIENT STATE: " + clientConnection.state);
+                    if (clientConnection.state == ConnectionState.HandshakeRequest && receivedMessage == Mnet.messageHandshakeResponse)
                     {
-                        numberOfExtraPacketsNeeded++;
-                        activePacket.Reset();
-                        activePacket.isActive = true;
+                        //CreateConnection(readPos);
+                        CreateConnection();
+                    }
+                    else if (clientConnection.state == ConnectionState.Connecting && receivedMessage == Mnet.messageNewConnectionVerified)
+                    {
+                        //BeginInitialization(readPos);
+                        BeginInitialization();
+                    }
+                    else if (clientConnection.state == ConnectionState.Initializing)
+                    {
+                        InitializingClientGame();
+                        // Tsekkaa puuttuva snapshot paketti JA tick buffer? (processestickseparation)
+                        // START GAME AFTER SETTING EVERYTHING UP AND USING SNAPSHOT
+                        // SEND READY AND SET CONNECTED
                     }
                 }
             }
-            /*
-            currentObjectIndex++;
-            infLoop--;
-
-            if (infLoop == 0)
-            {
-                print("INF LOOP DINGUS");
-                break;
-            }
-            */
-
         }
-        firstPacketInUpdate.extraPacketsInUpdate = numberOfExtraPacketsNeeded;
-
-        // LOOPS TO CREATE PACKETS
-        //
-        // GET PACKET FROM BUFFER
-        // SET MOST OF HEADER
-        // FILL UNTIL CANNOT FIT MORE
-        // CREATE NEW IF NO PACKETS CAN FIT
-        // FOLLOW HOW MANY PACKETS ARE TO BE SEND AND FROM WHICH INDEX
-        // CALL SEND FROM MAIN METHOD
-
-        // GET PACKET
-        // SET DATA
-        // SET HEADER
-        // - SIZE HELPPO
-        // - FRAMETIME KAIKIL SAMA
-        // FRAME # SUORAA INDEX
-        // FRAME OUT OF: PAKETTIEN MÄÄRÄ
-
-        //PACKET_#
-        //SIZE
-        //FRAMETIME
-        //FRAME_#
-        //- IF SPLIT(viiminen bitti flag)
-        //- #
-        //- out of
-        //    - IF Supersize(viiminen bitti flag sizessa)
-
-        //    SUPERSIZE
-        //    -#
-        //	-OUT OF #
-        //DATA
-        lastTickSize = numberOfExtraPacketsNeeded + 1;
-        activePacket = firstPacketInUpdate;
-        for (int i = 0; i <= numberOfExtraPacketsNeeded; i++)
-        {
-            /*
-            Span<byte> packetNeedingHeader = activePacket.PacketHeader();
-            BinaryPrimitives.WriteInt32LittleEndian(packetNeedingHeader.Slice(MnetSettings.headerServerPacketNumberPosition, 4)
-                , nextExpectedPacketNumber++);//currentPacketNumber + i);
-            BinaryPrimitives.WriteInt16LittleEndian(packetNeedingHeader.Slice(MnetSettings.headerServerSizePosition, 2)
-                , activePacket.currentLength);
-            
-            // Unity does not support all BinaryPrimitives' methods, so BitConverter is used as a substitute
-            BitConverter.TryWriteBytes(packetNeedingHeader.Slice(MnetSettings.headerServerTickTimePosition, 4), currentFrameTime);
-            BinaryPrimitives.WriteInt32LittleEndian(packetNeedingHeader.Slice(MnetSettings.headerServerTickNumberPosition, 4),
-                currentFrameNumber);
-
-            // If the frame needs multiple packets, add sequence number and total number of packets.
-            // If singular packet, set values to zero.
-            packetNeedingHeader[MnetSettings.headerServerTickSplitInfoPosition] =
-                (numberOfExtraPacketsNeeded > 0) ? (byte)i : (byte)0;
-            packetNeedingHeader[MnetSettings.headerServerTickSplitInfoPosition + 1] =
-                (numberOfExtraPacketsNeeded > 0) ? (byte)numberOfExtraPacketsNeeded : (byte)0;
-            //buffer.Add(currentPacketNumber + i, packetNeedingHeader);
-            activePacket = activePacket.nextPacket;
-            */
-        }
-        currentPacket.extraPacketsInUpdate = numberOfExtraPacketsNeeded;
-        //// Jos oli normi päivitys ni tiedetään mistä jatkaaa seuraavassa rundissa
-        if (!getWorldState) currentPacket = activePacket;
     }
 
-    public void Disconnect()
+    public void HandshakeRequest()
     {
-        if(connectionState == ConnectionState.Connected)
+        messenger.Reset();
+        // Message
+        //System.Text.Encoding.ASCII.GetBytes(Mnet.messageHandshakeRequest, messenger.Write(Mnet.messageLength));
+        messenger.WriteMessage(Mnet.messageHandshakeRequest);
+        //messenger.currentLength += 16;
+        // Address
+        int addressLength;
+        clientConnection.localEP.Address.TryWriteBytes(messenger.Write(Mnet.ipAddressLength), out addressLength);
+        //messenger.currentLength += addressLength;
+        // Port
+        MnetTools.Int32ToBytes(messenger.Write(Mnet.portLength), port);
+        //messenger.currentLength += 4;
+
+        /*
+        CreateNewConnectionMessage(MnetSettings.messageHandshakeRequest, messenger, new int[] {
+            localEP.Port
+        }, localEP.Address.GetAddressBytes());
+       */
+
+        IPEndPoint handshaker = new IPEndPoint(IPAddress.Parse(serverAddress), serverPort);
+
+        //Send(messenger, connection, PacketPriority.Important);
+        for (int i = 0; i < (int)PacketPriority.Important; i++)
         {
-            connectionEstablisherPacket[0] = (byte)MessageType.Disconnect;
-            Encoding.ASCII.GetBytes(MnetSettings.messageDisconnectByClient.AsSpan(), connectionEstablisherPacket.Span(1, 16));
-            for (int i = 0; i < 3; i++)
-            {
-                socket.Send(connectionEstablisherPacket.Span(0, 17));
-            }
+            clientConnection.socket.SendTo(messenger.Data, handshaker);
         }
-        connectionState = ConnectionState.Disconnected;
-        socket.Close();
+        clientConnection.state = ConnectionState.HandshakeRequest;
+        
+        print("CLIENT: SEND HANDSHAKE REQUEST");
+    }
+
+    public void CreateConnection()//int readPos)
+    {
+        // Get the information for the new connection, send by the server
+        //IPAddress newAddress = new IPAddress(messenger.Span(readPos, 4));
+        IPAddress newAddress = new IPAddress(messenger.Read(Mnet.int32));
+        //readPos += 4;
+        //int newPort = MnetTools.BytesToInteger(messenger.Span(readPos, 4), 4);
+        int newPort = MnetTools.BytesToInteger(messenger.Read(Mnet.int32));//, Mnet.int32);
+        //readPos += 4;
+        //clientConnection.playerNumber = MnetTools.BytesToInteger(messenger.Span(readPos, 4), 4);
+        clientConnection.playerNumber = MnetTools.BytesToInteger(messenger.Read(Mnet.int32));//, 4);
+
+        // Bind the socket to the endpoint of the new connection
+        clientConnection.ConnectTo(new IPEndPoint(newAddress, newPort));
+        clientConnection.state = ConnectionState.Connecting;
+
+        // Send a message to test the new connection
+        messenger.Reset();
+        //System.Text.Encoding.ASCII.GetBytes(Mnet.messageNewConnectionTest, messenger.Write(Mnet.messageLength));
+        messenger.WriteMessage(Mnet.messageNewConnectionTest);
+        //messenger.currentLength = 16;
+        Send(messenger, clientConnection, PacketPriority.Important);
+
+        print("CLIENT: CREATING CONNECTION TO "+clientConnection.remoteEP.Address+":"+clientConnection.remoteEP.Port);
+    }
+
+    public void BeginInitialization()//int readPos)
+    {
+
+        // !!! Connection verified viestin perään voidaan lyödä pakettinumero ja tick et voidaan alottaa oikee. Nää pitää sitte olla TULEVAT eikä nykyset
+
+        int latestServerSendTick =
+            MnetTools.BytesToInteger(messenger.Read(Mnet.headerPacketNumberLength));//, Mnet.headerPacketNumberLength);
+        //readPos += Mnet.headerTickNumberLength;
+        int activeSceneOnServer = MnetTools.BytesToInt32(messenger.Read(Mnet.int32));
+
+        if(activeSceneOnServer != activeSceneIndex)
+        {
+            ChangeScene(activeSceneOnServer);
+        }
+        // Täs vaiheessa vois jo varmaa vaihtaa normi listenii kattoo vaa et kaikki tarvittava on kunnos (tick ainaki tarvitaa, paketti numero on kai 0)
+        // GET SNAP TÄSSÄ VAIHEESSA?
+        // Voiko kopioida Listenistä snap osion? Tarvitaan muuten tick numero et tiedetää mikä snap haetaan
+
+        // Client now needs to send snapshot request to get the ball rolling
+
+        // !!! Snapin pitäis yliajaa muutenki kaikki ni se pitäis hypätä tän nykyhetkeen sitte ku se saapuu
+
+        // Connection is verified, so we will request for the snapshot
+        messenger.Reset();
+        messenger.Message = MessageType.SnapshotRequest;
+        messenger.SetTickNumber(latestServerSendTick);
+        clientConnection.firstPacketInSnapshot = -1;
+
+        CreatePlayerObjects(clientConnection);
+
+        Send(messenger, clientConnection, PacketPriority.Important);
+        clientConnection.state = ConnectionState.Initializing;
+        print("CLIENT: INITIALIZING CONNECTION");
+    }
+
+    public void InitializingClientGame()
+    {
+        print("CLIENT INIT LISTENING, SNAPSHOT COUNT = "+ clientConnection.snapshotPacketsLeft.Count+", BUFFER = "+ clientConnection.playerBuffer.writeReadDistanceInTicks);
+        ListenForIncoming(clientConnection, clientConnection.playerBuffer);
+
+        // When the client receives that snapshot and enough ticks to fill write/read cushion, we can start the game on the client side
+        if (clientConnection.snapshotPacketsLeft.Count == 0 && clientConnection.playerBuffer.writeReadDistanceInTicks >= Mnet.bufferBetweenWrittenAndProcessedTicks)
+        {
+            // Send the ready message to the server as a last step
+            messenger.Reset();
+            //System.Text.Encoding.ASCII.GetBytes(Mnet.messageReadyToStart, messenger.Write(Mnet.messageLength));
+            messenger.WriteMessage(Mnet.messageReadyToStart);
+            Send(messenger, clientConnection, PacketPriority.Important);
+            
+            // Client has connected and we are ready to simulate ticks
+            activeConnections.Add(clientConnection);
+            clientConnection.state = ConnectionState.Connected;
+            clientConnection.isActive = true;
+        }
+    }
+
+
+
+    private void OnDisable()
+    {
+    }
+
+    public override void Disconnect(MnetConnection disconnecting, DisconnectCause cause)
+    {
+
+    }
+    public override void LocalTick()
+    {
+        print("CLIENT TICK");
     }
 }
-
-

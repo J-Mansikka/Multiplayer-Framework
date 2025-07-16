@@ -10,49 +10,50 @@ public class MnetPacketBuffer
 {
     public bool isCircularBuffer;
     //public int currentID = 0;
-    public MnetPacket[] buffer;
+    public MnetPacket[] packetBuffer;
     //private byte[][] packetBuffer;
     public MnetPacket packetForProcessing;  //
     public MnetPacket packetForWriting;   // 
-    public int nextFreePacketNumber;
+    public int writeReadDistanceInTicks;
+    // Seuraava odotettu paketti numero kai? Olis loogista jos bufferi itse yll‰pit‰‰ tilannetta? joo ku useampi user 
+    // Pit‰‰ kyll‰ yhdist‰ess‰ siirt‰‰ alotus numeroon ja siit‰ sitten seurata
 
 
 
-
-    public MnetPacketBuffer(int size = MnetSettings.serverPacketBufferSize, bool bufferIsServerType = true)
+    public MnetPacketBuffer(int bufferSize)
     {
         //buffer = new MnetPacket[ServerSettings.packetBufferSize];
         //packetBuffer = new byte[ServerSettings.packetBufferSize][ServerSettings.maxPacketSize];
         //packetBuffer = new byte[ServerSettings.packetBufferSize][];
-        buffer = new MnetPacket[size];
-        for (int i = 0; i < buffer.Length; i++)
+        packetBuffer = new MnetPacket[bufferSize];
+        for (int i = 0; i < packetBuffer.Length; i++)
         {
-            buffer[i] = new MnetPacket(bufferIsServerType);
+            packetBuffer[i] = new MnetPacket(true);
         }
         // Link packets in buffer together
-        for (int i = 0; i < buffer.Length - 1; i++)
+        for (int i = 0; i < packetBuffer.Length - 1; i++)
         {
-            buffer[i].nextPacket = buffer[i + 1];
+            packetBuffer[i].nextPacket = packetBuffer[i + 1];
         }
         // Connect last packet to the first
-        buffer[buffer.Length - 1].nextPacket = buffer[0];
+        packetBuffer[packetBuffer.Length - 1].nextPacket = packetBuffer[0];
         /*
         for (int i = 0; i < packetBuffer.Length; i++)
         {
             packetBuffer[i] = new byte[ServerSettings.maxPacketSize];
         }
         */
-        nextFreePacketNumber = 0;
-        packetForWriting = buffer[0];
-        packetForProcessing = buffer[0];
+        packetForWriting = packetBuffer[0];
+        packetForProcessing = packetBuffer[0];
+        writeReadDistanceInTicks = 0;
     }
 
     // DELETE THIS SHIT!
     public void CheckBuffer()
     {
-        for (int i = 0; i < buffer.Length; i++)
+        for (int i = 0; i < packetBuffer.Length; i++)
         {
-            if (buffer[i] == null || buffer[i].nextPacket == null)
+            if (packetBuffer[i] == null || packetBuffer[i].nextPacket == null)
             {
                 Debug.Log("!!!!!!!!!!!!!!!          HOLD ON         !!!!!!!!!!!!");
             }
@@ -86,6 +87,6 @@ public class MnetPacketBuffer
 
     public MnetPacket Get(int packetID)
     {
-        return buffer[packetID % buffer.Length];
+        return packetBuffer[packetID % packetBuffer.Length];
     }
 }

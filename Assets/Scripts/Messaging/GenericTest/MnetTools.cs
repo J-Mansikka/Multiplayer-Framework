@@ -11,9 +11,10 @@ public static class MnetTools
     // In packets these three integers values are used the most, so this is a helpful converter that can be used
     // with the constant values in the settings class to convert bytes into integer values.
     // The default value used is the segment size, since it sees most action
-    public static int BytesToInt(Span<byte> bytes, int byteCount = MnetSettings.bytesReservedForSegmentSize)
+    public static int BytesToInteger(Span<byte> bytes)//, int byteSize)
     {
-        switch (byteCount)
+        int byteSize = bytes.Length;
+        switch (byteSize)
         {
             case 1:
                 return bytes[0];
@@ -23,13 +24,20 @@ public static class MnetTools
                 return BinaryPrimitives.ReadInt32LittleEndian(bytes);
             default:
                 throw new NotSupportedException
-                    ("Tried to read an unaccounted integer type that uses "+byteCount+" bytes.");
+                    ("Tried to read an unaccounted integer type that uses "+byteSize+" bytes.");
         }
     }
 
-    public static void IntToBytes(Span<byte> bytes, int value, int byteCount = MnetSettings.bytesReservedForSegmentSize)
+
+    public static int BytesToInt32(Span<byte> bytes)
     {
-        switch (byteCount)
+        return BinaryPrimitives.ReadInt32LittleEndian(bytes);
+    }
+
+    public static void IntegerToBytes(Span<byte> bytes, int value)
+    {
+        //int byteSize = bytes.Length;
+        switch (bytes.Length)//byteSize)
         {
             case 1:
                 bytes[0] = (byte)value;
@@ -42,8 +50,13 @@ public static class MnetTools
                 break;
             default:
                 throw new NotSupportedException
-                    ("Tried to write an unaccounted integer type that uses " + byteCount + " bytes.");
+                    ("ERROR: Received non valid span of bytes. Accepted lengths are 1, 2, 4 (byte, short, int32).");
         }
+    }
+
+    public static void Int32ToBytes(Span<byte> bytes, int value)
+    {
+        BinaryPrimitives.WriteInt32LittleEndian(bytes, value);
     }
 
     // Lis‰‰ float/double t‰nne

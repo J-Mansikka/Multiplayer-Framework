@@ -1,10 +1,13 @@
+using System;
 using System.Buffers.Binary;
 using System.Collections;
 using System.Collections.Generic;
+using System.Net;
 using UnityEngine;
 
 public class TESTturha : MonoBehaviour
 {
+    public bool fixedTesti;
     public bool fuckingGo;
     public bool testPackets;
     public MnetObject send;
@@ -13,31 +16,59 @@ public class TESTturha : MonoBehaviour
     public MnetMessager messageSender;
     public MnetMessager messageReceiver;
 
+    public delegate void TestDelli();
+    TestDelli dell;
+    public Dictionary<int, Delegate> delegs;
+
+
+    private void Awake()
+    {
+    }
+
+
     void Start()
     {
-
+        delegs = new Dictionary<int, Delegate>();
         paketit = new MnetPacket[10];
 
+        IPAddress add = IPAddress.Parse("101.102.104.108");
+        byte[] asBytes = new byte[10];
+        int len = 0;
+        add.TryWriteBytes(asBytes, out len);
+        print("LENGTH " + len);
+        int numba = MnetTools.BytesToInteger(asBytes.AsSpan(0, 4));
+        MnetTools.Int32ToBytes(asBytes, numba);
+        add = new IPAddress(asBytes.AsSpan(0,4));
+        print(add);
+
+        dell += FuncTesti;
+        delegs.Add(0, dell);
+
+        foreach(Delegate del in delegs.Values)
+        {
+            del.DynamicInvoke();
+        }
     }
 
     // Update is called once per frame
     void Update()
     {
+
         if (testPackets)
         {
-            foreach(MnetObject obj in messageSender.objectsBeingSynced)
+            foreach(MnetObject obj in messageSender.worldObjects)
             {
                 obj.ForceSizeTesti();
             }
-            messageSender.WriteRegularPacket(messageSender.genericBuffer);
-            messageSender.genericBuffer.packetForProcessing = messageSender.genericBuffer.buffer[0];
+            messageSender.WriteRegularOutgoingMessage(messageSender.worldBuffer, messageSender.worldObjectIDs);
+            messageSender.worldBuffer.packetForProcessing = messageSender.worldBuffer.packetBuffer[0];
             /*
             for (int i = 0; i < 50; i++)
             {
                 print(messageSender.buffer.buffer[0][i]);
             }
             */
-            messageReceiver.ReadRegularPacket(messageSender.genericBuffer);
+            //messageReceiver.ReadRegularPacket(messageSender.outgoingBuffer);
             testPackets = false;
         }
 
@@ -53,6 +84,8 @@ public class TESTturha : MonoBehaviour
                 paketit[i] = new MnetPacket(false);
             }
             MnetPacket paketti = paketit[starttiPak];
+            send.PrepareSnapshotUpdate();
+            //                                                                      send.CountSize();
             while (send.WriteChanges(paketti))
             {
                 starttiPak++;
@@ -82,13 +115,14 @@ public class TESTturha : MonoBehaviour
                 readFrom = paketti.headerLength;
                 while (packetSize > 0)
                 {
+                    print("Reading");
                     readFrom += 2;  // Skip ID
                     segmentLength = paketti[readFrom];
                     readFrom += 1; // Skip size
                     //print("PROCESSING FLAGS " + System.Convert.ToString(paketti[readFrom], toBase: 2));
                     //print("LENGTH " + segmentLength);
                     packetSize -= segmentLength+3;
-                    receive.ReadChanges(paketti.Span(readFrom, segmentLength));
+                    //                                              receive.ReadChanges(paketti.Span(readFrom, segmentLength));
                     readFrom += segmentLength;
                 }
                 
@@ -113,5 +147,14 @@ public class TESTturha : MonoBehaviour
             */
             fuckingGo = false;
         }
+    }
+
+    private void FixedUpdate()
+    {
+    }
+
+    public void FuncTesti()
+    {
+        Debug.Log("TURHA DAMAGE TESTI");
     }
 }

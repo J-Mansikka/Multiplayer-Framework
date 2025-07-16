@@ -14,7 +14,6 @@ public class MTESTserver : MonoBehaviour
     private int numberOfPackets;
     private int curPacket;
 
-    public TestingArray arry;
     public MnetStringUnicode useri;
 
     // TESTI OSAT
@@ -29,7 +28,7 @@ public class MTESTserver : MonoBehaviour
 
     private void Awake()
     {
-        buffer = new MpacketContainer[MnetSettings.serverPacketBufferSize];
+        buffer = new MpacketContainer[Mnet.serverPacketBufferSize];
 
     }
 

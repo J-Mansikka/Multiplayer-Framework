@@ -15,7 +15,7 @@ using JetBrains.Annotations;
  */
 public class MnetClientHandler
 {
-    public ConnectionState connectionState = ConnectionState.NotActive;
+    public WANHAConnectionState connectionState = WANHAConnectionState.NotActive;
     //private MnetServer server;
     public int clientDictionaryKey;
     public byte[] IPasBytes;
@@ -63,14 +63,14 @@ public class MnetClientHandler
         */
         connectionEstablisherPacket = new MnetPacket(false);
         //incomingPacket = new byte[ServerSettings.maxPacketSize];
-        clientActionBuffer = new MnetPacketBuffer(MnetSettings.clientPacketBufferSize, false);
+        clientActionBuffer = new MnetPacketBuffer(Mnet.clientPacketBufferSize);
         lastTickReceived = 0;
         //incomingPacket = clientActionBuffer.Get(las);
         handlerEP = new IPEndPoint(localIP, localPort);
         remoteClientEP = new IPEndPoint(clientIP, clientPort);
         connectionToClient.Bind(handlerEP);
         connectionToClient.Connect(remoteClientEP);
-        timeoutTimer = MnetSettings.maxTimeoutCount;
+        timeoutTimer = 0f;
     }
 
     // 
@@ -78,25 +78,28 @@ public class MnetClientHandler
     {
         if (connectionToClient.Available > 0)
         {
-            connectionToClient.Receive(connectionEstablisherPacket.Span());
+            connectionToClient.Receive(connectionEstablisherPacket.AllBytes());
 
-            string messageReceived = Encoding.ASCII.GetString(connectionEstablisherPacket.Span(0, 16));
-            if (messageReceived == MnetSettings.messageClientHandshake)
+            //string messageReceived = Encoding.ASCII.GetString(connectionEstablisherPacket.Read(Mnet.messageLength));
+            string messageReceived = connectionEstablisherPacket.ReadMessage();
+            if (messageReceived == Mnet.messageNewConnectionTest)
             {
                 // Send back the response
-                Encoding.ASCII.GetBytes(MnetSettings.messageHandlerHandshakeResponse.AsSpan(), connectionEstablisherPacket.Span());
+                connectionEstablisherPacket.Reset();
+                //Encoding.ASCII.GetBytes(Mnet.messageNewConnectionVerified.AsSpan(), connectionEstablisherPacket.Write(Mnet.messageLength));
+                connectionEstablisherPacket.WriteMessage(Mnet.messageNewConnectionVerified);
 
-                for (int i = 0; i < MnetSettings.redundantCopiesHandshake; i++)
+                for (int i = 0; i < (int)PacketPriority.Important; i++)
                 {
-                    connectionToClient.Send(connectionEstablisherPacket.Span(0, 16));
+                    connectionToClient.Send(connectionEstablisherPacket.CurrentMessage());
                 }
 
                 /// Ei voi viel yhist‰‰
                 //connectionState = ConnectionState.Connected;
             }
-            if (messageReceived == MnetSettings.messageClientReadyToStart)
+            if (messageReceived == Mnet.messageReadyToStart)
             {
-                connectionState = ConnectionState.SyncWorldState;
+                connectionState = WANHAConnectionState.SyncWorldState;
             }
         }
     }
@@ -123,16 +126,18 @@ public class MnetClientHandler
     
     public void SendFullWorldSnapshot()
     {
+        /*
         outgoingPacket = worldSnapshotBuffer.Get(0);
         int packetsToSend = outgoingPacket.extraPacketsInUpdate;
         while (packetsToSend >= 0)
         {
-            connectionToClient.Send(outgoingPacket.WholePacket());
+            connectionToClient.Send(outgoingPacket.CurrentMessage());
             outgoingPacket = outgoingPacket.nextPacket;
             packetsToSend--;
         }
         // Player should now have the most up to date snapshot, so they should be in sync again
         connectionState = ConnectionState.Connected;
+        */
     }
 
     public void ResendMissedPackets()
@@ -151,19 +156,19 @@ public class MnetClientHandler
                 incomingPacket = clientActionBuffer.Get(lastTickReceived);
                 //MessageResult result = (MessageResult)incomingPacket.data[0];
 
-                switch(incomingPacket.PacketType)
+                switch(incomingPacket.Message)
                 {
                     case MessageType.Regular:
                         // Liikuta ajalla ja ota paketti taltee
                         break;
-                    case MessageType.RequestMissedPacket:
+                    case MessageType.MissingPacketsRequest:
                         // Kopioi listaa numerot
                         break;
                     //case MessageType.:
                     //    // L‰het‰ koko sync jos viel‰ on yhteys?
                     //    break;
-                    case MessageType.Disconnect:
-                        if(Encoding.ASCII.GetString(incomingPacket.Span(1,16)) == MnetSettings.messageDisconnectByClient) { Disconnect(); }
+                    case MessageType.DisconnectNotification:
+                        if(incomingPacket.ReadMessage() == Mnet.messageDisconnectByClient) { Disconnect(); }
                         break;
                     default:
                         break;
@@ -173,7 +178,7 @@ public class MnetClientHandler
         else
         {
             timeoutTimer += time;
-            if (timeoutTimer > MnetSettings.maxTimeoutCount)
+            if (timeoutTimer > Mnet.heartbeatLimit)
             {
                 Disconnect();
             }
@@ -184,20 +189,20 @@ public class MnetClientHandler
     {
         switch (connectionState)
         {
-            case ConnectionState.Connected:
+            case WANHAConnectionState.Connected:
                 // L‰het‰ uusin paketti vaan
                 SendTick();
                 break;
-            case ConnectionState.MissingPackets:
+            case WANHAConnectionState.MissingPackets:
                 // receiving kautta saadaa tieto ni lis‰t‰‰ ne List<short> ja sielt‰ paukautetaan l‰htee bufferista uudestaan ja per‰‰n viimeisin
                 ResendMissedPackets();
                 SendTick();
                 break;
-            case ConnectionState.SyncWorldState:
+            case WANHAConnectionState.SyncWorldState:
                 // L‰het‰ koko state joka sitten on myˆs viimeisin ni per‰‰ ei tarvii l‰hett‰‰
                 SendFullWorldSnapshot();
                 break;
-            case ConnectionState.Handshake:
+            case WANHAConnectionState.Handshake:
                 HandShake(time);
                 break;
             default:
@@ -214,16 +219,18 @@ public class MnetClientHandler
     public void Disconnect()
     {
         //connectionToClient.Shutdown(SocketShutdown.Both); /// Uskoisin ettei udp tarvii ku ei oo yhteytt‰ eik‰ streamia
-        if (connectionState == ConnectionState.Connected)
+        if (connectionState == WANHAConnectionState.Connected)
         {
-            connectionEstablisherPacket[0] = (byte)MessageType.Disconnect;
-            Encoding.ASCII.GetBytes(MnetSettings.messageDisconnectByServer.AsSpan(), connectionEstablisherPacket.Span(1, 16));
+            connectionEstablisherPacket.Reset();
+            connectionEstablisherPacket[0] = (byte)MessageType.DisconnectNotification;
+            connectionEstablisherPacket.WriteMessage(Mnet.messageDisconnectByServer);
+            //Encoding.ASCII.GetBytes(Mnet.messageDisconnectByServer.AsSpan(), connectionEstablisherPacket.Span(1, 16));
             for (int i = 0; i < 3; i++)
             {
-                connectionToClient.Send(connectionEstablisherPacket.Span(0,17));
+                connectionToClient.Send(connectionEstablisherPacket.CurrentMessage());
             }
         }
         connectionToClient.Close();
-        connectionState = ConnectionState.Disconnected;
+        connectionState = WANHAConnectionState.Disconnected;
     }
 }

@@ -27,19 +27,19 @@ public abstract class Mobject : MonoBehaviour
         foreach ( MdataItem item in allNetworkItems )
         {
             item.Initialize();
-            if(item.sizeAsBytes > MnetSettings.maxSyncedObjects)
+            if(item.sizeAsBytes > Mnet.maxSyncedObjects)
             {
                 Debug.LogError(nameof(item)+" size is over the limit.");
             }
             maxSizeOfObjects += item.sizeAsBytes;
         }
         // Set header size
-        headerSize = MnetSettings.idLength + flagByteCount;
+        headerSize = Mnet.idLength + flagByteCount;
         Debug.Log("HEADER = " + headerSize + ". MAXSIZE = " + maxSizeOfObjects);
         // Set up the container for items with its maximum possible size
         bytesToSend = new byte[headerSize + maxSizeOfObjects];
         byte[] idToBytes = BitConverter.GetBytes(idNumber); 
-        for (int i = 0; i < MnetSettings.idLength; i++)
+        for (int i = 0; i < Mnet.idLength; i++)
         {
             bytesToSend[i] = idToBytes[i];
         }
@@ -52,7 +52,7 @@ public abstract class Mobject : MonoBehaviour
         // Setting all flag bytes to zero
         for (int flagBytePos = 0; flagBytePos < flagByteCount; flagBytePos++)
         {
-            bytesToSend[MnetSettings.idLength+flagBytePos] = 0;
+            bytesToSend[Mnet.idLength+flagBytePos] = 0;
         }
 
         // Array to store bytes from current item
@@ -75,7 +75,7 @@ public abstract class Mobject : MonoBehaviour
         {
             Debug.Log(curItemNumber);
             // Set active flag byte
-            curFlagByte = (curItemNumber / 8) + MnetSettings.idLength;
+            curFlagByte = (curItemNumber / 8) + Mnet.idLength;
             // If the current item has changed, add it and set the flag
             if (item.hasChanged)
             {
@@ -145,7 +145,7 @@ public abstract class Mobject : MonoBehaviour
         int readPos = headerSize;
 
         // Lue flagit ja sen mukaan aseta
-        int curFlagByte = MnetSettings.idLength;
+        int curFlagByte = Mnet.idLength;
         int flagReadhead = 1;
         int flagValue;
         foreach (MdataItem item in allNetworkItems)

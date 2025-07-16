@@ -52,7 +52,7 @@ public abstract class MessageBase
     {
         for (int i = 0; i < flagByteCount; i++)
         {
-            messageAsBytes[MnetSettings.flagSegmentsStart + i] = 0;
+            messageAsBytes[Mnet.flagSegmentsStart + i] = 0;
         }
     }
 
@@ -68,7 +68,7 @@ public abstract class MessageBase
         }
         messageAsBytes = new byte[messageMaxLength];
 
-        messageAsBytes[MnetSettings.typeSegment] = (byte)messageType;      // Message Type will never change so it can be set here.
+        messageAsBytes[Mnet.typeSegment] = (byte)messageType;      // Message Type will never change so it can be set here.
         setupMessageContainer = false;
     }
 
@@ -130,8 +130,8 @@ public abstract class MessageBase
                     if (messageSegments[segmentsProcessed].ToBytes(messageAsBytes, ref writeHead))
                     { 
                         // Set the flag
-                        messageAsBytes[MnetSettings.flagSegmentsStart + bytesLeftToProcess - 1]
-                            = (byte)(messageAsBytes[MnetSettings.flagSegmentsStart + bytesLeftToProcess - 1] | (1 << (segmentsProcessed + ((bytesLeftToProcess - flagByteCount) * 8))));
+                        messageAsBytes[Mnet.flagSegmentsStart + bytesLeftToProcess - 1]
+                            = (byte)(messageAsBytes[Mnet.flagSegmentsStart + bytesLeftToProcess - 1] | (1 << (segmentsProcessed + ((bytesLeftToProcess - flagByteCount) * 8))));
                         // Convert segment to bytes and move writehead.
                         //???????????
                     }
@@ -151,7 +151,7 @@ public abstract class MessageBase
             */
 
             // Finalize by checking and storing message length and adding the sequence number
-            if (writeHead <= MnetSettings.maxPacketDataSize)
+            if (writeHead <= Mnet.maxPacketDataSize)
             {
                 // Combining message length and message priority. These two bytes will always be the first segment in every message.
                 ushort messageLength = (ushort)writeHead;
@@ -159,7 +159,7 @@ public abstract class MessageBase
                 //ushort sizeAndType = (ushort)(messageLength | (ushort)transferMethodAsBits);
                 messageAsBytes[0] = (byte)(messageLength);//sizeAndType;
                 messageAsBytes[1] = (byte)(messageLength >> 8);//(sizeAndType >> 8);
-                messageAsBytes[MnetSettings.sequenceSegment] = sequenceNumber;
+                messageAsBytes[Mnet.sequenceSegment] = sequenceNumber;
                 //FlagsToBytes();
 
             }
@@ -193,26 +193,26 @@ public abstract class MessageBase
         count = BitConverter.ToUInt16(incoming, messageStartPosition);
 
         // Get sequence
-        sequenceNumber = incoming[MnetSettings.sequenceSegment + messageStartPosition];
+        sequenceNumber = incoming[Mnet.sequenceSegment + messageStartPosition];
 
         // Get data with flags
        //ebug.Log(flagByteCount);
         int flagBytesLeft = flagByteCount;
         int flagsLeft = messageSegments.Length;
-        int readHead = messageStartPosition + MnetSettings.flagSegmentsStart + flagByteCount;
+        int readHead = messageStartPosition + Mnet.flagSegmentsStart + flagByteCount;
 
         while (flagBytesLeft > 0)
         {
             int bitsChecked = 0;
             while (flagsLeft > 0 && bitsChecked < 8)
             {
-                if ((incoming[messageStartPosition + MnetSettings.flagSegmentsStart + flagBytesLeft - 1] & (1 << bitsChecked)) != 0)
+                if ((incoming[messageStartPosition + Mnet.flagSegmentsStart + flagBytesLeft - 1] & (1 << bitsChecked)) != 0)
                 {
                     // Set data from bytes
                     messageSegments[bitsChecked].ToData(incoming, readHead);
                     // Clear out the flag
-                    incoming[messageStartPosition + MnetSettings.flagSegmentsStart + flagBytesLeft]
-                        = (byte)(incoming[messageStartPosition + MnetSettings.flagSegmentsStart + flagBytesLeft] & ~(1 << bitsChecked));
+                    incoming[messageStartPosition + Mnet.flagSegmentsStart + flagBytesLeft]
+                        = (byte)(incoming[messageStartPosition + Mnet.flagSegmentsStart + flagBytesLeft] & ~(1 << bitsChecked));
                 }
 
                 readHead += messageSegments[bitsChecked].MaxAllottedSize;

@@ -131,7 +131,7 @@ public class AsyncClient: MonoBehaviour
 
                 Debug.Log("C: "+seqNumber+" "+updateTimer);
 
-                cc.Move(new Vector3(xMov, 0f, zMov) * updateTimer * MnetSettings.tempPlayerSpeed);
+                cc.Move(new Vector3(xMov, 0f, zMov) * updateTimer * Mnet.tempPlayerSpeed);
 
                 if (inputs != 0)
                 {
@@ -181,7 +181,7 @@ public class AsyncClient: MonoBehaviour
         if (currentMove.HasFlag(PlayerMovement.forward)) zMov = 1f;
         if (currentMove.HasFlag(PlayerMovement.backward)) zMov = -1f;
 
-        Vector3 move = new Vector3(xMov, 0f, zMov) * Time.deltaTime * MnetSettings.tempPlayerSpeed;
+        Vector3 move = new Vector3(xMov, 0f, zMov) * Time.deltaTime * Mnet.tempPlayerSpeed;
         //Debug.Log("CLIENT: INPUT = "+xMov+". DT = "+deltaTime+". FT = "+frameTime);
         //Debug.Log(move);
         cc.Move(move);

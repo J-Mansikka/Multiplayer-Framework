@@ -7,16 +7,16 @@ using UnityEngine;
 [Serializable]
 public class MnetInt : MnetVariableType<int>
 {
-    public override void Deserialize(Span<byte> receivedBytes)
+    public override void Deserialize(MnetPacket packet)//Span<byte> receivedBytes)
     {
         //Value = BitConverter.ToInt32(receivedBytes);
-        Value = BinaryPrimitives.ReadInt32LittleEndian(receivedBytes);
+        SetReceivedValue(BinaryPrimitives.ReadInt32LittleEndian(packet.Read(sizeInBytes)));//receivedBytes));
     }
 
-    public override void Serialize(Span<byte> reservedBytes)
+    public override void Serialize(MnetPacket packet)//Span<byte> reservedBytes)
     {
         //BitConverter.TryWriteBytes(reservedBytes, Value);
-        BinaryPrimitives.WriteInt32LittleEndian(reservedBytes, _value);
+        BinaryPrimitives.WriteInt32LittleEndian(packet.Write(sizeInBytes), Value); //reservedBytes, _value);
     }
 
     public override void SetSize()

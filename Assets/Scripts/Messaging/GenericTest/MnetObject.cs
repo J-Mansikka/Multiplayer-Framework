@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Security.Cryptography;
+using Unity.VisualScripting;
 using UnityEngine;
 
 /*
@@ -13,33 +14,56 @@ public enum ObjectSplit
     Auto, Always, Never
 }
 */
+
+// Blueprint eli metodi joka palauttaa tavun ja ei ota parametrei
+public delegate byte SyncedAction();
 public class MnetObject : MonoBehaviour
 {
-    //[Tooltip("Messaging mode determines who has control over the object. AUTO = Copy from Instance Messenger. ")]
-    private bool bidirectional;
+    public Ownership ownership;
     //public MnetObjectInstanceMessenger handler;   /// parempi että spawneri hoitaa objectin kommunikoinnin. Turhia välikäsiä muute
-    public int objectTypeID;//short         // ID number used by the ObjectHandler to communicate what type of object is being spawned/despawned
-    public int objectInstanceID;//short     // ID of object instance that is active and being synced
+    public int objectTypeID = -1;//short         // ID number used by the ObjectHandler to communicate what type of object is being spawned/despawned
+    public int objectInstanceID = -1;//short     // ID of object instance that is active and being synced
     protected MnetVariable[] variables;     // All the variables used by the object to act and stay in sync
     [HideInInspector]
-    public int flagByteCount;               // Amount of bytes reserved for the bit flags, that inform the receiver of which variables to process
+    public int variableflagByteCount;               // Amount of bytes reserved for the bit flags, that inform the receiver of which variables to process
+    //[HideInInspector]
+    //public int methodFlagByteCount;
+    protected MnetActions actions;
     //protected byte[] bytes;                 
-    protected int headerLength;//short      // Length of the object's header in bytes
-    //public bool hasUpdated;               // If anything changes between ticks, this bool is set so that the changes will be send
-    public int currentSize;//short          // Current size of the object during the tick
-    public MnetObject prevActiveObject;
-    public MnetObject nextActiveObject;
+    //protected int headerLength;//short      // Length of the object's header in bytes
+    public bool hasUpdated;               // If anything changes between ticks, this bool is set so that the changes will be send
+    //!!     public int currentSize;//short          // Current size of the object during the tick
+    //  public MnetObject prevActiveObject;
+    //  public MnetObject nextActiveObject;
     private int firstVariableToSerialize;   // Starting index of variables for serializing vittu keksi joku parempi kuvaus
-    protected void Initialize(bool communicateBothWays = false)//MnetObject owner)
+    //public bool createSnapshotUpdateNext;
+
+    //public Dictionary<int, Func<int>> syncedActions;
+    protected SortedDictionary<byte, SyncedAction> methodDictionary;
+    //protected LinkedList<byte> newActions;
+       
+
+
+
+    protected void Initialize()//MnetObject owner)
     {
+        // !!! TESTING SHIT
+
+
+        //syncedActions = new Dictionary<int, Func<int>>();
+        methodDictionary = new SortedDictionary<byte, SyncedAction>();
+        //newActions = new LinkedList<byte>();
+
+
         //// Poistin this parametrin ja kaikki näyttää silti toimivan? miks se tarvittiin alunperin?
         /// Oikeesti whats up?
         
         //Type type = owner.GetType();
         //Debug.Log(type);
-        bidirectional = communicateBothWays;
         FieldInfo[] fields = GetType().GetFields(BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public);//type.GetFields();
+        MethodInfo[] methods = GetType().GetMethods(BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public);
         SortedList<string,MnetVariable> vars = new SortedList<string,MnetVariable>();
+        SortedList<string,MethodInfo> methodCollection = new SortedList<string,MethodInfo>();
         MnetVariable extractedVar;
         foreach (FieldInfo field in fields)
         {
@@ -57,9 +81,42 @@ public class MnetObject : MonoBehaviour
                 //Debug.Log("NIMI "+field.Name);
             }
         }
-        /*owner.*/variables = vars.Values.ToList().ToArray();
+        foreach (MethodInfo meth in methods)
+        {
+            //Debug.Log(this.name + " " + meth.Name);
+
+
+
+            string methodName = meth.Name;
+            if (meth.Name.Length >= 6 && meth.Name.Substring(0,6) == "Action")
+            {
+                Debug.Log("FOUND METHOD "+meth.Name);
+                SyncedAction newAct = (SyncedAction)Delegate.CreateDelegate(typeof(SyncedAction), this, meth);
+                //Func<int> newFunction = del;
+                byte returnID = newAct.Invoke();
+                methodDictionary.Add(returnID, newAct);
+                /*
+                extractedVar = (MnetVariable)field.GetValue(this);//owner);
+
+                extractedVar.owner = this;
+                extractedVar.Setup();
+
+                //if(extractedVar.itemMessagingMode == MessagingDirection.Auto) extractedVar.itemMessagingMode = messagingMode;
+                vars.Add(field.Name, extractedVar);
+                extractedVar.variableName = field.Name;
+
+                */
+            }
+        }
+        actions = new MnetActions();
+
+
+        /*owner.*/
+        variables = vars.Values.ToList().ToArray();
         // !!! Poistettu variableBitFlags = new byte[1 + ((variables.Length - 1) / 8)];
-        flagByteCount = 1 + ((variables.Length - 1) / 8);
+        variableflagByteCount = 1 + ((variables.Length - 1) / 8);
+        //methodFlagByteCount = 1 + ((syncedActions.Count - 1) / 8);
+
 
         /*  !! !!  Olis selkee jos olis variaabeleil sijainti näinki talletettu mutta ylimääräset fieldit tuhlaa rammia joten käytetää vaa järjestyst
         MnetVariable curVar;
@@ -74,7 +131,7 @@ public class MnetObject : MonoBehaviour
         */
         // !!! INT 
         //!!!! Poiistettu headerLength = (short)(variableBitFlags.Length + MnetSettings.objectHeaderIdAndSizeLength);
-        headerLength = flagByteCount + MnetSettings.objectHeaderIdAndSizeLength;
+        //headerLength = MnetSettings.objectHeaderIdAndSizeLength + variableflagByteCount;
         // !!! EIKS OO PAREMPI ET CURRENT SIZE ON VAAN DATA? EI BIT FLAGIT VARMAA KOSKAA OO HIRVEE MÄÄRÄ
         //currentSize = headerLength;
         firstVariableToSerialize = 0;
@@ -100,7 +157,8 @@ public class MnetObject : MonoBehaviour
             if(var.sizeCategory > VariableSize.Limited)
             {
                 // Most likely the size will surpass one segment, but we can use it as a starting size since it grows automatically when needed
-                var.bytes = new byte[MnetSettings.bytesReservedForSegmentSize];
+                // Segmentointi poistettu ja tää oli väärin. Koko oli 1 vaikka ideana oli kai olla 256
+                var.bytes = new byte[256];
             }
             //
             //
@@ -126,7 +184,7 @@ public class MnetObject : MonoBehaviour
             */
         }
 
-        currentSize = 0;
+        //!!    currentSize = 0;
 
         //Debug.Log("CURRENT OBJECT SIZE " + currentSize);
 
@@ -191,15 +249,69 @@ public class MnetObject : MonoBehaviour
     }
     */
 
-    public virtual void Tick()
+    public void Sync(byte methodID)
     {
-        throw new NotImplementedException("Base implemention of Tick() on "+name+" was called." +
-            " Tick() has to be overridden and is required for all synced objects.");
+        actions.Add(methodID);
+        //newActions.AddLast(callerID);
     }
+
+    public virtual void Activate()
+    {
+    }
+
+    public virtual void SyncUp()
+    {
+        throw new NotImplementedException();
+    }
+
+    public void PawnTick()
+    {
+        Span<byte> calledMethods = actions.GetActions();
+        // Iterate through the received action keys and invoke the method
+
+        for (int i = 0; i < calledMethods.Length; i++)
+        {
+            methodDictionary[calledMethods[i]].Invoke();
+        }
+        /*
+        foreach(byte index in newActions)
+        {
+            methodDictionary[index].Invoke();
+        }
+        */
+        // We need to clear the actions before next tick
+        //newActions.Clear();
+    }
+
+    public void Tick(bool createSnapshot)
+    {
+        if (createSnapshot)
+        {
+            SnapshotTick();
+        }
+        else
+        {
+            RegularTick();
+        }
+    }
+
+    public virtual void SnapshotTick()
+    {
+        throw new NotImplementedException("Base implemention of SnapshotTick() on "+name+" was called." +
+            " SnapshotTick() has to be overridden and is required for all synced objects.");
+    }
+
+    public virtual void RegularTick()
+    {
+        throw new NotImplementedException("Base implemention of RegularTick() on " + name + " was called." +
+            " RegularTick() has to be overridden and is required for all synced objects.");
+    }
+
 
     // The most basic version of preparing an object for a snapshot update would be to send all of its variables.
     // In practical use this method should be overridden with a specific implementation per object for sane results.
-    public virtual void PrepareForSnapshot()
+    // !!!! EI KUTSUTA MUN MIELEST SUORAAN VAAN KATOTAAN KU TULEE OBJEKTIN UPDATE ELI LISÄÄN FIELDIIN BOOLI
+    public virtual void PrepareSnapshotUpdate()
     {
         for (int i = 0; i < variables.Length; i++)
         {
@@ -207,14 +319,16 @@ public class MnetObject : MonoBehaviour
         }
     }
 
+    /*
     // ! ! !! !  WRITE TESTIS KÄYTÖS VOIT POISTAA KOSKA KOKO TULEE MUUTOKSISTA
-    public void DEBUGSize()
+    public void CountSize()
     {
         for (int i = 0; i < variables.Length; i++)
         {
-            currentSize += variables[i].sizeInBytes;
+            if (variables[i].hasChanged) currentSize += variables[i].sizeInBytes;
         }
     }
+    */
     public void DebugPrintOut()
     {
         Debug.Log("OBJECT ID: " + objectInstanceID);
@@ -230,16 +344,20 @@ public class MnetObject : MonoBehaviour
         {
             //byte updatedFlag = (byte)(variableBitFlags[variables[i].flagIndex] | variables[i].flagValue);
             //variableBitFlags[variables[i].flagIndex] = updatedFlag;
-            variables[i].UpdateSize();
+            MnetVariable curVar = variables[i];
+            if (curVar.sizeCategory > VariableSize.Static)
+            {
+                curVar.SetSize();
+            }
             //byte flag = variableBitFlags[variables[i].flagIndex];
             //variableBitFlags[variables[i].flagIndex] = (byte)(flag | variables[i].flagValue);
         }
     }
 
     // The incoming bytes are sliced so that they only contain the bit flags and the variable data
-    public void ReadChanges(Span<byte> objectAsBytes)
+    public void ReadChanges(MnetPacket packet)//Span<byte> objectAsBytes)
     {
-         //Convert.ToString(objectAsBytes[0], toBase: 2));
+        //Convert.ToString(objectAsBytes[0], toBase: 2));
         /*
         for (int i = 0; i < objectAsBytes.Length; i++)
         {
@@ -247,14 +365,42 @@ public class MnetObject : MonoBehaviour
         }
         */
 
+        // If a locally owned object is given remote data, this means there is a bug or some client is sending malicious data.
+        // We will ignore this data and skip over to the next object
+        if(ownership == Ownership.Local)
+        {
+            Debug.LogError("Locally owned object was sent remote data, which should not be possible.");
+            return;
+        }
+
+        //int readPosition = 0;
+        int numberOfActions = packet.ReadSingleByte();//objectAsBytes[readPosition++];
+
+
+        
+        /*
+        if (newActions.Count == 0)
+        {
+            for (int i = 0; i < numberOfActions; i++)
+            {
+                newActions.AddLast(packet.ReadSingleByte());//objectAsBytes[readPosition++]);
+            }
+        }
+        */
+
         int bitFlag = 1;
-        int currentFlagByte = 0;
+        // Action count value + actions
+        //readPosition = 1 + numberOfActions;
+        int currentFlagByte = packet.readPosition;//readPosition;
 
-        print("R_FLAGS " + Convert.ToString(objectAsBytes[0], toBase: 2));
+        // * print("R_FLAGS " + Convert.ToString(objectAsBytes[0], toBase: 2));
 
+
+
+        // !!! DEBUG READ BYTES PRINT OUT. DELETE!
         for (int i = 1; i < 25; i++)
         {
-            print("R_BYTE " + i + ": " + objectAsBytes[i]);
+            // * print("R_BYTE " + i + ": " + objectAsBytes[i]);
         }
         //int itemsProcessed = 0;
         // Move the read head to the data portion
@@ -267,7 +413,8 @@ public class MnetObject : MonoBehaviour
         // 20- = bitflagit + data
         // ELI OIKEESSA TAPAUKSESSA TÄÄ SAA KAIKKI BITFLAGISTA ETEENPÄIN JA SERVER/CLIENT KÄYTTÄÄ ID JA KOON
 
-        int readPosition = flagByteCount;
+        // We jump over the flag bytes to get to the actual variable data
+        packet.readPosition += variableflagByteCount;
 
         //// EIKS ID KATOTA CLIENT/SERVER PUOLELLA EIKÄ OBJECTISSA ?!
         //// TÄÄ VOI SEOTA !?
@@ -282,7 +429,7 @@ public class MnetObject : MonoBehaviour
             //print("VARI "+bitFlag + ". PAKETTI " + objectAsBytes[currentFlagByte]);
             // Miks ei vaa suoraa objectAsbytes[i] == bitFlag & objectAsBytes???
             // Ja onks tää operaatio oikein? bitflag == bitflag? Wot... Ai joo bitflag on esim. 0010 ja & muuttais 0000 jos ei oo flagBytes sitä kans
-            if (bitFlag == (bitFlag & objectAsBytes[currentFlagByte]))//variableBitFlags[currentFlagByte]))
+            if (bitFlag == (bitFlag & packet[currentFlagByte]))//variableBitFlags[currentFlagByte]))
             {
                 MnetVariable curVar = variables[i];
 
@@ -291,23 +438,25 @@ public class MnetObject : MonoBehaviour
 
                     if (curVar.sizeCategory == VariableSize.Static)
                     {
-                        curVar.Deserialize(objectAsBytes.Slice(readPosition, curVar.sizeInBytes));
-                        readPosition += curVar.sizeInBytes;
+                        curVar.Deserialize(packet);//objectAsBytes.Slice(readPosition, curVar.sizeInBytes));
+                        //readPosition += curVar.sizeInBytes;
                     }
                     else
                     {
-                        curVar.sizeInBytes = MnetTools.BytesToInt(objectAsBytes.Slice(readPosition), MnetSettings.bytesReservedForSegmentSize);
-                        readPosition += MnetSettings.bytesReservedForSegmentSize;
-                        curVar.Deserialize(objectAsBytes.Slice(readPosition, curVar.sizeInBytes));
-                        readPosition += curVar.sizeInBytes;
+                        curVar.sizeInBytes = MnetTools.BytesToInteger(packet.Read(Mnet.bytesReservedForLimitedItemSize));//objectAsBytes.Slice(readPosition, Mnet.bytesReservedForSegmentSize));
+                        //readPosition += Mnet.bytesReservedForSegmentSize;
+                        curVar.Deserialize(packet);//objectAsBytes.Slice(readPosition, curVar.sizeInBytes));
+                        //readPosition += curVar.sizeInBytes;
                     }
                 }
                 else
                 {
-                    Debug.Log("(SPLIT READ) TOTAL: " + MnetTools.BytesToInt(objectAsBytes.Slice(readPosition,2), MnetSettings.bytesReservedForSplitItemSize) +
-                    ". START: " + MnetTools.BytesToInt(objectAsBytes.Slice(MnetSettings.bytesReservedForSplitItemSize, 2), 2) +
+                    /*
+                    Debug.Log("(SPLIT READ) TOTAL: " + MnetTools.BytesToInteger(objectAsBytes.Slice(readPosition,2)) +
+                    ". START: " + MnetTools.BytesToInteger(objectAsBytes.Slice(Mnet.bytesReservedForSplitItemSize, 2)) +
                     ". AMOUNT: " + objectAsBytes[readPosition+4]);
-                    readPosition += curVar.ReadSplitSegment(objectAsBytes.Slice(readPosition));
+                    */
+                    curVar.ReadSplitSegment(packet);//objectAsBytes.Slice(readPosition));
                 }
             }
 
@@ -339,11 +488,14 @@ public class MnetObject : MonoBehaviour
         // IF SPLIT
         // IF CAN FIT
 
+        //print("Need to write " + currentSize);
+
         // Object's size has not increased meaning it has not changed, so we do an early exit
-        if(currentSize == 0)
+        if(!hasUpdated)
         {
             return false;
         }
+        
 
         // We need to skip full packets ( TUHLAAVA SYSTEEMI, VAIHDA TULEVAISUUDESSA)
         if (packet.isFull)
@@ -359,252 +511,355 @@ public class MnetObject : MonoBehaviour
 
 
 
-        int headerPos;
-        bool serializingSegment = true;
-        int smallestSkippedItem = Int32.MaxValue;
+        //int headerPos;
+        //bool serializingObject = true;
+        //int smallestSkippedItem = Int32.MaxValue;
 
-        while (serializingSegment)
+        bool didSerializeSomething = false;
+
+        // Add the object ID at first. If for some reason we end up skipping every item, we can return the bytes to the packet later
+        MnetTools.IntegerToBytes(packet.Write(Mnet.bytesReservedForObjectID), objectInstanceID);
+
+        // TEMP CHECK TAI EHKÄ LOPULLINEN (KATOTAA ENNE VAREJA ETTÄ ACTIONIT MAHTUU)
+
+        if (actions.Length > 0)
         {
-                //print("WRITING! CURRENT SIZE "+currentSize);
-            // Keep track if we actually managed to serialize a variable. If we did, we need to add a header to the segment
-            int startSize = currentSize;
-            // Store the header position of the segment
-            headerPos = packet.currentLength;
-            // Reserver space for the object header
-            packet.currentLength += MnetSettings.objectHeaderIdAndSizeLength;
-
-            // Get remaining space for data on the packet
-            int spaceRemaining = MnetSettings.maxPacketDataSize - packet.currentLength;
-
-            // We are limited by either the segment size or the remaining space in the packet so we have to check which is smaller
-            spaceRemaining = Math.Min(MnetSettings.maxSegmentSize, spaceRemaining);
-
-            // Bytes containing the bit flags is belongs to the object instance, so it will take up space in the segment
-            spaceRemaining -= flagByteCount;
-            packet.currentLength += flagByteCount;
-            int writePos = packet.currentLength;
-            // Set up values used to edit the bytes that contain the bit flags
-            int flagBytesPos = headerPos + MnetSettings.objectHeaderIdAndSizeLength;
-            int flagIndex = 0;
-            int flagValue = 1;
-            int itemSize = 0;
-            // Set flag bytes to zero to erase old data
-            for (int i = 0; i < flagByteCount; i++)
+            if (packet.SpaceRemaining < actions.Length + 1)//newActions.Count + Mnet.bytesReserverdForActionCount)
             {
-                packet[flagBytesPos + i] = 0;
+                // Get another packet
+                packet.currentLength -= Mnet.bytesReservedForObjectID;
+                // Actions should take relatively little space so if we can't fit them, we won't even bother with the variables
+                return true;
             }
-
-            // Adding the header will increase packet's length and move the writing position of the actual variable data
-            //packet.currentLength += headerLength;
-
-            //int bytesWritten = 0;
-
-            for (int v = firstVariableToSerialize; v < variables.Length; v++)
+            else
             {
-                MnetVariable curVar = variables[v];
-                if (curVar.hasChanged)
+                actions.Serialize(packet);
+                didSerializeSomething = true;
+            }
+        }
+
+
+        // SEGMENT LOOP ALKU NYT POISTETTU
+        //while (serializingObject)
+        //{
+        //print("WRITING! CURRENT SIZE "+currentSize);
+        // Keep track if we actually managed to serialize a variable. If we did, we need to add a header to the segment
+        //!!    int startSize = currentSize;
+        // Store the header position of the segment
+        //headerPos = packet.currentLength;
+        // Reserver space for the object header
+        //packet.currentLength += Mnet.objectHeaderIdLength;
+
+        // Get remaining space for data on the packet
+        //int spaceRemaining = Mnet.maxPacketDataSize - packet.currentLength;
+
+        // We are limited by either the segment size or the remaining space in the packet so we have to check which is smaller
+        //spaceRemaining = Math.Min(Mnet.maxSegmentSize, spaceRemaining);
+        //int writePos = packet.currentLength;
+        //int actionBytes = newActions.Count + 1;
+        // We need one byte to store how many actions there were
+        //  MnetTools.IntegerToBytes(packet.Write(Mnet.bytesReserverdForActionCount), newActions.Count);
+
+        //writePos++;
+        //spaceRemaining -= 1;
+        // Then each action gets one byte
+        /*
+        bool serializeActions = true;
+        while (serializeActions)
+        {
+            packet.WriteSingleByte(newActions.)
+        }
+        foreach(byte act in newActions)
+        {
+            packet.WriteSingleByte(act);
+        }
+        */
+        //spaceRemaining -= newActions.Count;
+        // Bytes containing the bit flags is belongs to the object instance, so it will take up space in the segment
+        //spaceRemaining -= variableflagByteCount;
+        //packet.currentLength += newActions.Count + 1;
+        //packet.currentLength += variableflagByteCount;
+        //writePos = packet.currentLength;
+        // Set up values used to edit the bytes that contain the bit flags
+        int flagBytesPos = packet.currentLength;//headerPos + Mnet.objectHeaderIdAndSizeLength + newActions.Count+1;
+        int flagIndex = 0;
+        int flagValue = 1;
+        int itemSize = 0;
+        // Set flag bytes to zero to erase old data
+        for (int i = 0; i < variableflagByteCount; i++)
+        {
+            packet[flagBytesPos + i] = 0;
+        }
+
+        // Adding the header will increase packet's length and move the writing position of the actual variable data
+        //packet.currentLength += headerLength;
+
+        //int bytesWritten = 0;
+
+        bool finishedSerializing = true;
+        int startPos = firstVariableToSerialize;
+
+        for (int v = startPos; v < variables.Length; v++)
+        {
+            MnetVariable curVar = variables[v];
+            if (curVar.hasChanged)
+            {
+                // In items that the size can change, we need to update it when writing
+                // !! !!! EI TÄS OO MITÄÄ JÄRKEE!
+
+                //print("OBO: " + currentSize + ", " + curVar.variableName + " " + curVar.sizeInBytes);
+
+                itemSize = curVar.sizeInBytes + (int)curVar.sizeCategory;
+                Debug.Log(curVar.variableName + " " + curVar.sizeInBytes);
+                /*
+                if(curVar.sizeInBytes == 0)
                 {
-                    // In items that the size can change, we need to update it when writing
-                    // !! !!! EI TÄS OO MITÄÄ JÄRKEE!
+                    curVar.SetSize();
+                }
+                */
+                // !!!!! Pitäis olla ok. Eli jos splitataa ni skipataa tää osio
+                // If variable is too large and is not meant to be split, we have to skip it and later resume writing with a fresh segment
 
-                    itemSize = curVar.sizeInBytes + (int)curVar.sizeCategory;
+
+                //if (curVar.sizeInBytes + (int)curVar.sizeCategory > spaceRemaining && curVar.sizeCategory != VariableSize.DividableSplit)
+                // If the item cannot fit in the remaining space, but would fit in a single segment, we will skip it and write it whole later
+                // Segmentointi poistettu eli tää on turha. Vois ehkä yhdellä boolilla merkata että tarvitaan toinen paketti?
+                if (itemSize > packet.SpaceRemaining)// spaceRemaining)
+                {
                     /*
-                    if(curVar.sizeInBytes == 0)
+                    if (firstVariableToSerialize == 0)
                     {
-                        curVar.SetSize();
+                        firstVariableToSerialize = v;
                     }
+                    if(itemSize < smallestSkippedItem) smallestSkippedItem = itemSize;
                     */
-                    // !!!!! Pitäis olla ok. Eli jos splitataa ni skipataa tää osio
-                    // If variable is too large and is not meant to be split, we have to skip it and later resume writing with a fresh segment
-                    
+                    firstVariableToSerialize = v;
+                    finishedSerializing = false;
+                    continue;
+                }
 
-                    //if (curVar.sizeInBytes + (int)curVar.sizeCategory > spaceRemaining && curVar.sizeCategory != VariableSize.DividableSplit)
-                    // If the item cannot fit in the remaining space, but would fit in a single segment, we will skip it and write it whole later
-                    if(itemSize < MnetSettings.maxSegmentSize && itemSize > spaceRemaining)
+                // ! ! !! JOKU TURHAKE
+                //byte curFlag = variables[v].flagValue;
+
+                // ! !! ! Vähä turhaa sehlausta näitte flaggien kanssa. Jos tiedetään et objekti on muuttunu ni miks se asetettais nyt ja miks?
+                //byte flagByte = variableBitFlags[curVar.flagIndex];
+                //variableBitFlags[curVar.flagIndex] = (byte)(flagByte | curVar.flagValue);
+
+                // !!! SERIALISOINTI BLOKKI MUT MIS VITUS KATOTAAN ETTÄ MAHTUU? YLEMPÄNÄ ON EARLY EXIT ELI
+                // KAIKKI MUU PAITSI SPLITTABLE TARKASTAA KOON EKA
+                if (curVar.sizeCategory < VariableSize.Splittable) //!curVar.canBeSplit)
+                {
+                    // If the item size can change between updates, we need to add it before the serialized value
+                    if (curVar.sizeCategory == VariableSize.Limited) //curVar.varyingSize)
                     {
-                        if (firstVariableToSerialize == 0)
-                        {
-                            firstVariableToSerialize = v;
-                        }
-                        if(itemSize < smallestSkippedItem) smallestSkippedItem = itemSize;
-                        continue;
+                        //MnetTools.IntegerToBytes(packet.AvailableSpace(), curVar.sizeInBytes);
+                        MnetTools.IntegerToBytes(packet.Write(Mnet.bytesReservedForLimitedItemSize), curVar.sizeInBytes);//packet.Span(writePos), curVar.sizeInBytes, Mnet.bytesReservedForSegmentSize);
+                        //writePos += Mnet.bytesReservedForSegmentSize;
+                        //currentSize += (int)curVar.sizeCategory;
+                        //curVar.Serialize(packet.Span(writePos, curVar.sizeInBytes));
+                        //print(curVar.variableName+" SIZE: "+curVar.sizeInBytes);
+                        //!!!! Muutos automatisoitu variabletypeen bytesWritten += MnetSettings.bytesReservedForSegmentSize;
+                        // Pitäiskö sitte lisätä currentSizee vaan täässä kohtaa +bytesForSegmentSize ? Jeeeeeeesus
+                        //writePos += MnetSettings.bytesReservedForSegmentSize;
+                        // !!!! Turhaa tsekataa välis kokoa ku tiedetää et mahtuu
+                        //spaceRemaining -= MnetSettings.bytesReservedForSegmentSize;
+
+                        // ! ! ! Current size tulee variaabeleist ja headerist eli jos ei oo varissa enää ni ei oo myöskää currentSizes
+                        //currentSize -= ServerSettings.bytesReservedForItemSizeValue;
+                        //packet.Span(packet.currentLength, 1)[0] = curVar.sizeInBytes;
+                        //curVar.SetSize();
+                        //Debug.Log(curVar.variableName + " READ SIZE IS " + (curVar.sizeInBytes));
                     }
+                    //else
+                    //{
+                    curVar.Serialize(packet);//packet.Span(writePos, curVar.sizeInBytes));
+                    //}
 
-                    // ! ! !! JOKU TURHAKE
-                    //byte curFlag = variables[v].flagValue;
+                    // ! ! !!  Eiks splitti tarvii oman serialisointi metodin samanlai ku on toi vitun yhdistäminen?
+                    // Ei koska serialisointi vaan luo tavuja ni.. tarvitaan vaan erikseen headeri ja sitte... Ei ku se mene varin kautta ni tarvitaa
+                    // ELi vois hyödyntää ehkä sizeInBytesia ku antaa lohkon koon? Vai ihan erillinen kutsu? Tee metodi ja kato site
 
-                    // ! !! ! Vähä turhaa sehlausta näitte flaggien kanssa. Jos tiedetään et objekti on muuttunu ni miks se asetettais nyt ja miks?
-                    //byte flagByte = variableBitFlags[curVar.flagIndex];
-                    //variableBitFlags[curVar.flagIndex] = (byte)(flagByte | curVar.flagValue);
-
-                    // !!! SERIALISOINTI BLOKKI MUT MIS VITUS KATOTAAN ETTÄ MAHTUU? YLEMPÄNÄ ON EARLY EXIT ELI
-                    // KAIKKI MUU PAITSI SPLITTABLE TARKASTAA KOON EKA
-                    if (curVar.sizeCategory < VariableSize.Splittable) //!curVar.canBeSplit)
+                    // We serialize the value into the packet bytes, account for the amount written and adjust the item to mark it as done
+                    //writePos += curVar.sizeInBytes;
+                    curVar.hasChanged = false;
+                    // ! !! Miks nollataa jos hasChanged on se joka määrää? Onko snapshottia varten?
+                    //if(curVar.sizeCategory != VariableSize.Static) curVar.sizeInBytes = 0;
+                }
+                else
+                {
+                    /*
+                    if (itemSize > Mnet.maxSegmentSize)
                     {
-                        // If the item size can change between updates, we need to add it before the serialized value
-                        if (curVar.sizeCategory == VariableSize.Limited) //curVar.varyingSize)
-                        {
-                            //MnetTools.IntegerToBytes(packet.AvailableSpace(), curVar.sizeInBytes);
-                            MnetTools.IntToBytes(packet.Span(writePos,MnetSettings.bytesReservedForSegmentSize), curVar.sizeInBytes);
-                            writePos += MnetSettings.bytesReservedForSegmentSize;
-                                //curVar.Serialize(packet.Span(writePos, curVar.sizeInBytes));
-                                //print(curVar.variableName+" SIZE: "+curVar.sizeInBytes);
-                            //!!!! Muutos automatisoitu variabletypeen bytesWritten += MnetSettings.bytesReservedForSegmentSize;
-                            // Pitäiskö sitte lisätä currentSizee vaan täässä kohtaa +bytesForSegmentSize ? Jeeeeeeesus
-                            //writePos += MnetSettings.bytesReservedForSegmentSize;
-                            // !!!! Turhaa tsekataa välis kokoa ku tiedetää et mahtuu
-                            //spaceRemaining -= MnetSettings.bytesReservedForSegmentSize;
-
-                            // ! ! ! Current size tulee variaabeleist ja headerist eli jos ei oo varissa enää ni ei oo myöskää currentSizes
-                            //currentSize -= ServerSettings.bytesReservedForItemSizeValue;
-                            //packet.Span(packet.currentLength, 1)[0] = curVar.sizeInBytes;
-                            //curVar.SetSize();
-                                //Debug.Log(curVar.variableName + " READ SIZE IS " + (curVar.sizeInBytes));
-                        }
-                        //else
-                        //{
-                        curVar.Serialize(packet.Span(writePos, curVar.sizeInBytes));
-                        //}
-
-                        // ! ! !!  Eiks splitti tarvii oman serialisointi metodin samanlai ku on toi vitun yhdistäminen?
-                        // Ei koska serialisointi vaan luo tavuja ni.. tarvitaan vaan erikseen headeri ja sitte... Ei ku se mene varin kautta ni tarvitaa
-                        // ELi vois hyödyntää ehkä sizeInBytesia ku antaa lohkon koon? Vai ihan erillinen kutsu? Tee metodi ja kato site
-
-                        // We serialize the value into the packet bytes, account for the amount written and adjust the item to mark it as done
-                        writePos += curVar.sizeInBytes;
-                        curVar.hasChanged = false;
-                        // ! !! Miks nollataa jos hasChanged on se joka määrää? Onko snapshottia varten?
-                        //if(curVar.sizeCategory != VariableSize.Static) curVar.sizeInBytes = 0;
+                        currentSize += Mnet.variableMultipartHeaderLength;
                     }
                     else
                     {
-                        if (itemSize > MnetSettings.maxSegmentSize) currentSize += MnetSettings.variableMultipartHeaderLength;
-                        writePos += curVar.WriteSplitSegment(packet.Span(writePos, spaceRemaining), spaceRemaining);
-                    }
-                    // ! !!! ! Eiks nää pari vois pistää sitte ku kirjotetaan headeri ku kerra spaceRemaining kuitenki seuraa tilannetta yksistää?
-                    ///print("SIZE: " + currentSize + ", SPACE: " + spaceRemaining + ", LENGTH: " + packet.currentLength + ", WRITTEN: " + bytesWritten);
-                    spaceRemaining -= (writePos - packet.currentLength);
-                    currentSize -= (writePos - packet.currentLength);
-                    packet.currentLength = writePos;
-                    //Debug.Log("CHANGES AFTER WRITE: REMAINER = " + spaceRemaining + ". PACKET LENGTH = " + writePos);
-
-                    // ! ! ! TESTI MUT TOIMIVA KAI ELI EI SWAPATA BITTEI VAA LISÄTÄÄ FLAG DESIMAALI LUKUNA
-                    //packet.Span(headerPos + ServerSettings.objectHeaderIdAndSizeLength + variables[v].flagIndex, 1)[0] += curVar.flagValue;
-
-                    // Variable has been serialized
-
-
-
-                    /* ! !!! TOsi sotkunen vanha ja alla oleva pitäis toimai yhtä hyvin ja on miljoona kertaa selkeämpi
-                    byte updateFlag = packet.Span(headerPos + MnetSettings.objectHeaderIdAndSizeLength + variables[v].flagIndex, 1)[0];
-                    packet.Span(headerPos + MnetSettings.objectHeaderIdAndSizeLength + flagIndex, 1)[0]
-                        = (byte)(updateFlag | flagValue);//variables[v].flagValue);
-                    */
-                    // ! ! !!  MITÄ JOS PÄIVITTÄÄ FLAGINDEXIIN SUORAAN OIKEEN KOHDAN ELI ALOTUS + HEADERLENGTH
-                    // !!!! vähä myöhään tein mutta eiks tää oo okein ku flagIndex haetaan heti alussa ja varit käydää järjestää ni kasvaa vaa ++
-
-                    // After serializing the variable, we will update its bit flag in the outgoing segment
-                    // First we calculate the byte position where we store the flag. Everytime we have checked 8 bits we move to next byte
-                    flagIndex = (v / 8);
-                    // Second we calculate the bit we need to flip. We use the flagIndex value to reset back to 1 when previous byte is full
-                    flagValue = 1 << v - (flagIndex * 8);
-                    // Flip the bit on the correct byte
-                    packet[flagBytesPos + flagIndex] = (byte)(packet[flagBytesPos + flagIndex] | flagValue);
-                    //print(curVar.variableName+". FLAGS: " + Convert.ToString(packet[flagIndex],toBase:2));
-                    // Switch to next bit flag
-
-                    // Check if we have gone outside the byte and if true, start using the next byte
-                    /*
-                    if (flagValue == 256)
-                    {
-                        flagValue = 1;
-                        flagIndex++;
+                        currentSize += Mnet.bytesReservedForSplitItemSize;
                     }
                     */
-                    // ! !!  TURHA ? Now we will remove the flag bit from the object since it's done
-                    //byte clearFlag = variableBitFlags[variables[v].flagIndex];
-                    //variableBitFlags[variables[v].flagIndex] = (byte)(clearFlag ^ variables[v].flagValue);
-
-                    // Segments have a minimum treshold of space that need to exist to attemp writing
-                    // and if that is reached, we need to move on to another segment
-                    if (spaceRemaining < MnetSettings.minimumSpaceNeededForWriting)
-                    {
-                            //print("RAN OUT OF SPACE WITH " + currentSize + " REMAINING.");
-                        // If all previous variables have fit, start next serialization loop at were we left off
-                        if (firstVariableToSerialize == 0) firstVariableToSerialize = v + 1;
-
-                        // If packet size passes the minimum threshold, we will mark it as full and swap to a new packet
-                        if ((MnetSettings.maxPacketDataSize - packet.currentLength) < MnetSettings.minimumSpaceNeededForWriting)
-                        {
-                            serializingSegment = false;
-                            packet.isFull = true;
-                        }
-                        break;
-                    }
+                    //writePos +=
+                    curVar.WriteSplitSegment(packet);//packet.Span(writePos, spaceRemaining), spaceRemaining);
                 }
-            }
+                // ! !!! ! Eiks nää pari vois pistää sitte ku kirjotetaan headeri ku kerra spaceRemaining kuitenki seuraa tilannetta yksistää?
+                ///print("SIZE: " + currentSize + ", SPACE: " + spaceRemaining + ", LENGTH: " + packet.currentLength + ", WRITTEN: " + bytesWritten);
+                // Adjust changes by the variable size
+                //!!    spaceRemaining -= (writePos - packet.currentLength);
+                //!!    currentSize -= (writePos - packet.currentLength);
+                //!!    packet.currentLength = writePos;
+                //Debug.Log("CHANGES AFTER WRITE: REMAINER = " + spaceRemaining + ". PACKET LENGTH = " + writePos);
 
-            for(int i = 0; i < packet.currentLength; i++)
-            {
-                //print("WROTE[" + i + "] " + packet[i]);
-            }
+                // ! ! ! TESTI MUT TOIMIVA KAI ELI EI SWAPATA BITTEI VAA LISÄTÄÄ FLAG DESIMAALI LUKUNA
+                //packet.Span(headerPos + ServerSettings.objectHeaderIdAndSizeLength + variables[v].flagIndex, 1)[0] += curVar.flagValue;
 
-                //print("SIZE " + currentSize);
-            //print("START: " + startSize + ". SIZE: " + currentSize);
-            // Mikä tää on? SEURAA ONKO KIRJOTETU JOTAIN ELI TARVII HEADERIN. ELI HEADER WRITE VAAN.
-            // ON AINUT KOHTA MIS KIRJOTETAAN HEADERI MIKÄ ON JUST OIKEIN JA TÄHÄ SITTE LISÄTÄÄ BITFLAGIT JA NOLLATAA NE SEURAAVAA VARTE JEES JEES
-            // VAI KIRJOTETAANKO SUORAAN [] OPERAATTTORIL KU MUUTETAAN?
-            if (startSize != currentSize)
-            {
-                // ! !! ! ! !  MAGIC NUMBER 2. KÄYTÄ TOOLSSEJA?!
-                // HEADER KOHTAA EI SAA MUUTTAA KOSKA SE ON ALOTUS KOHTA ELI SIITÄ VOIDAAN ESIM. LASKEA KUINKA ISO MUUTOS KIRJATTIIN
-                // EI OO WRITE POS KÄYTÖSSÄ KU KOKO AJAN PÄIVITETÄÄN PACKET CURRENTLENGTH NI PITÄÄ LUODA UUS KAI 
-                //BinaryPrimitives.WriteInt16LittleEndian(packet.Span(headerPos, 2), objectInstanceID);
+                // Variable has been serialized
 
-                writePos = headerPos;
-                MnetTools.IntToBytes(packet.Span(writePos, MnetSettings.bytesReservedForObjectID), objectInstanceID, MnetSettings.bytesReservedForObjectID);
-                writePos += MnetSettings.bytesReservedForObjectID;
-                // ! !! TÄÄ PERSE ON KAI SITTEN KOKO JOKA ON LYÖ LUKKOON TAVUKS. TAITAA OLLA TEMP KOODIA TAAS JÖSSES
-                // !! ! ! EI SAA OLLA VAAN YHEN TAVUN MUUTOS JOS SEGMENTTI MUUTETAAN ISOMMAKS
-                //packet[headerPos + 2] = (byte)(packet.currentLength - headerPos);
-                int amountWritten = packet.currentLength - headerPos - MnetSettings.objectHeaderIdAndSizeLength;
-                MnetTools.IntToBytes(packet.Span(writePos, MnetSettings.bytesReservedForSegmentSize), amountWritten);
-                //print("ADDIGN HEADER! ID: "+MnetTools.BytesToInt(packet.Span(headerPos),MnetSettings.bytesReservedForObjectID)+". SIZE: "+(packet.currentLength-headerPos)+".");
-                //!!! LUE ALA writePos += MnetSettings.bytesReservedForSegmentSize;
-                /* !!! Eiks bit flagit aseteta suoraan pakettiin ku vari talletetaan? Kyl mun mielest ni fuck this osa
-                for (int i = 0; i < variableBitFlags.Length; i++)
+                didSerializeSomething = true;
+
+
+                /* ! !!! TOsi sotkunen vanha ja alla oleva pitäis toimai yhtä hyvin ja on miljoona kertaa selkeämpi
+                byte updateFlag = packet.Span(headerPos + MnetSettings.objectHeaderIdAndSizeLength + variables[v].flagIndex, 1)[0];
+                packet.Span(headerPos + MnetSettings.objectHeaderIdAndSizeLength + flagIndex, 1)[0]
+                    = (byte)(updateFlag | flagValue);//variables[v].flagValue);
+                */
+                // ! ! !!  MITÄ JOS PÄIVITTÄÄ FLAGINDEXIIN SUORAAN OIKEEN KOHDAN ELI ALOTUS + HEADERLENGTH
+                // !!!! vähä myöhään tein mutta eiks tää oo okein ku flagIndex haetaan heti alussa ja varit käydää järjestää ni kasvaa vaa ++
+
+                // After serializing the variable, we will update its bit flag in the outgoing segment
+                // First we calculate the byte position where we store the flag. Everytime we have checked 8 bits we move to next byte
+                flagIndex = (v / 8);
+                // Second we calculate the bit we need to flip. We use the flagIndex value to reset back to 1 when previous byte is full
+                flagValue = 1 << v - (flagIndex * 8);
+                // Flip the bit on the correct byte
+                packet[flagBytesPos + flagIndex] = (byte)(packet[flagBytesPos + flagIndex] | flagValue);
+                //print(curVar.variableName+". FLAGS: " + Convert.ToString(packet[flagIndex],toBase:2));
+                // Switch to next bit flag
+
+                // Check if we have gone outside the byte and if true, start using the next byte
+                /*
+                if (flagValue == 256)
                 {
-                    
+                    flagValue = 1;
+                    flagIndex++;
                 }
                 */
-            }
+                // ! !!  TURHA ? Now we will remove the flag bit from the object since it's done
+                //byte clearFlag = variableBitFlags[variables[v].flagIndex];
+                //variableBitFlags[variables[v].flagIndex] = (byte)(clearFlag ^ variables[v].flagValue);
 
-            print("HEADER ID: "+MnetTools.BytesToInt(packet.Span(headerPos, 2), 2));
-            print("HEADER SIZE: " + packet[headerPos+MnetSettings.bytesReservedForObjectID]);
-            print("HEADER FLAGS: " + Convert.ToString(packet[headerPos+MnetSettings.objectHeaderIdAndSizeLength],toBase:2));
-            for (int i = 4; i < 25;i++)
-            {
-                print("BYTE "+i+": "+packet[headerPos+i]);
-            }
+                // Segments have a minimum treshold of space that need to exist to attemp writing
+                // and if that is reached, we need to move on to another segment
+            /*    
+            if (packet.SpaceRemaining < Mnet.minimumSpaceNeededForWriting)
+                {
+                        //print("RAN OUT OF SPACE WITH " + currentSize + " REMAINING.");
+                    // If all previous variables have fit, start next serialization loop at were we left off
+                    if (firstVariableToSerialize == 0) firstVariableToSerialize = v + 1;
+                    //serializingObject = false;
+                    packet.isFull = true;
+                    break;
+                }
+                */
 
-            //print("!!!!!!!!!!!KOKO!!!!!!!!!!!! " + currentSize);
-            if (currentSize == 0)
-            {
-                // We have managed to serialize all the data and can now stop
-                print("NORMAL FINISH");
-                firstVariableToSerialize = 0;
-                serializingSegment = false;
             }
-            else if (smallestSkippedItem > MnetSettings.maxPacketDataSize - packet.currentLength)
-            {
-                // If the current packet cannot fit even the smallest item, we need to get a new one
-                print("NEW PACKET");
-                return true;
-            }
-            // ELSE WE LOOP TO NEW SEGMENT
-
-
         }
+
+        /*
+        for(int i = 0; i < packet.currentLength; i++)
+        {
+            //print("WROTE[" + i + "] " + packet[i]);
+        }
+        */
+
+            //print("SIZE " + currentSize);
+        //print("START: " + startSize + ". SIZE: " + currentSize);
+        // Mikä tää on? SEURAA ONKO KIRJOTETU JOTAIN ELI TARVII HEADERIN. ELI HEADER WRITE VAAN.
+        // ON AINUT KOHTA MIS KIRJOTETAAN HEADERI MIKÄ ON JUST OIKEIN JA TÄHÄ SITTE LISÄTÄÄ BITFLAGIT JA NOLLATAA NE SEURAAVAA VARTE JEES JEES
+        // VAI KIRJOTETAANKO SUORAAN [] OPERAATTTORIL KU MUUTETAAN?
+
+        // Vois olla vaan bool kai? Eli heti jos jotai kirjotetaan -> true?
+        // Tää on kai kaiken jälkeen eli on mahdollista että kelataan kaikki ohi ku ei mahdukkaan ni sit tarvitaan tää kai okei okei
+        if (!didSerializeSomething)//startSize != currentSize)
+        {
+            // If we end up skipping every variable, we need to return the space taken by the object ID
+            packet.currentLength -= Mnet.bytesReservedForObjectID;
+            // HEADER KOHTAA EI SAA MUUTTAA KOSKA SE ON ALOTUS KOHTA ELI SIITÄ VOIDAAN ESIM. LASKEA KUINKA ISO MUUTOS KIRJATTIIN
+            // EI OO WRITE POS KÄYTÖSSÄ KU KOKO AJAN PÄIVITETÄÄN PACKET CURRENTLENGTH NI PITÄÄ LUODA UUS KAI 
+            //BinaryPrimitives.WriteInt16LittleEndian(packet.Span(headerPos, 2), objectInstanceID);
+
+            //int writePos = headerPos;
+            //MnetTools.IntegerToBytes(packet.Span(writePos, Mnet.bytesReservedForObjectID), objectInstanceID);
+            ///writePos += Mnet.bytesReservedForObjectID;
+            // ! !! TÄÄ PERSE ON KAI SITTEN KOKO JOKA ON LYÖ LUKKOON TAVUKS. TAITAA OLLA TEMP KOODIA TAAS JÖSSES
+            // !! ! ! EI SAA OLLA VAAN YHEN TAVUN MUUTOS JOS SEGMENTTI MUUTETAAN ISOMMAKS
+            //packet[headerPos + 2] = (byte)(packet.currentLength - headerPos);
+            
+            //!!!! KOKOA EI TARVITA ENÄÄ
+            //int amountWritten = packet.currentLength - headerPos - Mnet.objectHeaderIdLength;
+            //MnetTools.IntegerToBytes(packet.Span(writePos, Mnet.bytesReservedForSegmentSize), amountWritten);
+            //print("ADDIGN HEADER! ID: "+MnetTools.BytesToInt(packet.Span(headerPos),MnetSettings.bytesReservedForObjectID)+". SIZE: "+(packet.currentLength-headerPos)+".");
+            //!!! LUE ALA writePos += MnetSettings.bytesReservedForSegmentSize;
+            /* !!! Eiks bit flagit aseteta suoraan pakettiin ku vari talletetaan? Kyl mun mielest ni fuck this osa
+            for (int i = 0; i < variableBitFlags.Length; i++)
+            {
+                    
+            }
+            */
+        }
+
+        // !!! ______________DEBUG STUFF________________
+        /*
+        print("HEADER ID: "+MnetTools.BytesToInteger(packet.Span(headerPos, 2)));
+        print("HEADER SIZE: " + packet[headerPos+Mnet.bytesReservedForObjectID]);
+        print("HEADER FLAGS: " + Convert.ToString(packet[headerPos+Mnet.objectHeaderIdLength],toBase:2));
+        for (int i = 4; i < 25;i++)
+        {
+            // * print("BYTE "+i+": "+packet[headerPos+i]);
+        }
+        */
+        //print("!!!!!!!!!!!KOKO!!!!!!!!!!!! " + currentSize);
+
+        /*
+
+
+         CHECK: Eli käyt varit läpi ja kato onko viel jäljel -> early exit
+
+         PATCH WORK PASKAA TAAS
+
+         */
+        /*
+        bool finished = true;
+
+        for (int i = 0; i < variables.Length; i++)
+        {
+            if (variables[i].hasChanged)
+            {
+                finished = false;
+                break;
+            }
+        }
+        */
+        if(packet.SpaceRemaining < Mnet.minimumSpaceNeededForWriting)
+        {
+            packet.isFull = true;
+        }
+
+        if (finishedSerializing)
+        {
+            // We have managed to serialize all the data and can now stop
+            print("NORMAL FINISH");
+            firstVariableToSerialize = 0;
+            //newActions.Clear();
+        }
+        // Segmentointi poistettu ni vaihtoehdot on vaan että mahtuu tai tarvitaan seuraava paketti
+        else //if (smallestSkippedItem > packet.SpaceRemaining)//Mnet.maxPacketDataSize - packet.currentLength)
+        {
+            // If the current packet cannot fit even the smallest item, we need to get a new one
+            print("NEW PACKET");
+            return true;
+        }
+
+
+        //} SEGMENTOINTI LOOP LOPPU POISTETTU
 
         // PITÄÄ TEHDÄ UUS KIRJOTUS JA TÄYTTÄÄ HEADERI JOS TULEE 255 TÄYTEEN. SWAPPAAKO KESKEN VARIAABELIEN VAI ALOTTAAKO LOOPIN ALUST?
 
@@ -627,6 +882,8 @@ public class MnetObject : MonoBehaviour
     public void Reset()
     {
         // TÄYSI TURHA?
+        ownership = Ownership.Auto;
+        objectInstanceID = -1;
     }
 
     //  !!!!! Jää varmuuden vuoks mut ei oo mitää virkaa mun mielest. Esim. split puuttuu ni ei missää nimessä voi palata takas

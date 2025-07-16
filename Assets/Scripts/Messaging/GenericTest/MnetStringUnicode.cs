@@ -13,15 +13,15 @@ public class MnetStringUnicode : MnetVariableType<string>
         //Debug.Log("CONSTRUCTOR CALLED");
     }
 
-    public override void Deserialize(Span<byte> receivedBytes)
+    public override void Deserialize(MnetPacket packet)//Span<byte> receivedBytes)
     {
             //Debug.Log("DESERIALIZING "+receivedBytes.Length);
-        Value = Encoding.Unicode.GetString(receivedBytes);
+        SetReceivedValue(Encoding.Unicode.GetString(packet.Read(sizeInBytes)));
     }
 
-    public override void Serialize(Span<byte> reservedBytes)
+    public override void Serialize(MnetPacket packet)//Span<byte> reservedBytes)
     {
-        Encoding.Unicode.GetBytes(Value,reservedBytes);
+        Encoding.Unicode.GetBytes(Value,packet.Write(sizeInBytes));
     }
 
     public override void SetSize()
