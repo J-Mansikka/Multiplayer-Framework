@@ -6,7 +6,7 @@ using System.Net;
 using System.Net.Sockets;
 using UnityEngine;
 
-public class MnetServer : MnetMessager
+public class MnetServer : MnetEndpoint
 {
     public string addressString = "192.168.1.2";
     public int handshakerPort = 28500;
@@ -24,9 +24,9 @@ public class MnetServer : MnetMessager
         worldObjectIDs = new HashSet<int>();
         activeConnections = new List<MnetConnection>();
         messenger = new MnetPacket(false);
-        worldObjects = new MnetObject[Mnet.maxSyncedObjects];
-        manager = GetComponent<MnetInstanceManager>();
-        manager.SetupInstanceManager(worldObjects, Ownership.Local);
+        worldObjects = new WANHAMnetObject[Mnet.maxSyncedObjects];
+        //          manager = GetComponent<MnetInstanceManager>();
+        //          manager.SetupInstanceManager(worldObjects, Ownership.Local);
     }
 
     private void Start()
@@ -146,7 +146,7 @@ public class MnetServer : MnetMessager
         {
             if (incomingID == existingConnection.connectionID)
             {
-                if (existingConnection.state == ConnectionState.Disconnecting)
+                if (existingConnection.state == WANHAAConnectionState.Disconnecting)
                 {
                     // !!! ELI YHDISTETÄÄ UUDELLEEN. TARVITAA VARMAAN UUSI sTATE (dropout, reconnectAvailable) tai ehkä disconnect käy?
                     // Ehkä vois olla et iha sama miks disconnecti, antaa mahdollisuuden joinata takas joku muutama minuuti. 
@@ -166,7 +166,7 @@ public class MnetServer : MnetMessager
         {
             if (incomingID == existingConnection.connectionID)
             {
-                if (existingConnection.state == ConnectionState.Disconnecting)
+                if (existingConnection.state == WANHAAConnectionState.Disconnecting)
                 {
                     // !!! ELI YHDISTETÄÄ UUDELLEEN. TARVITAA VARMAAN UUSI sTATE (dropout, reconnectAvailable) tai ehkä disconnect käy?
                     // Ehkä vois olla et iha sama miks disconnecti, antaa mahdollisuuden joinata takas joku muutama minuuti. 
@@ -188,6 +188,7 @@ public class MnetServer : MnetMessager
             MnetConnection newConnection =
                 new MnetConnection(playerNumber,
                 new IPEndPoint(IPAddress.Parse(addressString), handshakerPort + 1 + playerNumber),
+                new NewClient(),
                 Mnet.clientPacketBufferSize,
                 1);
 
@@ -213,7 +214,7 @@ public class MnetServer : MnetMessager
             //writePos += 4;
             //MnetTools.Int32ToBytes(messenger.Span(writePos), newConnection.playerNumber);
             MnetTools.Int32ToBytes(messenger.Write(Mnet.int32),newConnection.playerNumber);
-            newConnection.state = ConnectionState.Connecting;
+            newConnection.state = WANHAAConnectionState.Connecting;
 
             int sendDuplicates = newConnection.sendRate * (int)PacketPriority.Important;
             print("RESPONDING TO:");
@@ -261,7 +262,7 @@ public class MnetServer : MnetMessager
         */
 
         Send(messenger, newConnection, PacketPriority.Important);
-        newConnection.state = ConnectionState.Initializing;
+        newConnection.state = WANHAAConnectionState.Initializing;
 
         // !!! Ehkä pidetää newconnection listassa kunnes ready ni voidaa huomioida isReady viesti ja käynnistää
         //newConnectionsToInitialize.Remove(newConnection);

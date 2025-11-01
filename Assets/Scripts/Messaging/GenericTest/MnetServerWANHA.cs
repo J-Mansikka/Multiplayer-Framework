@@ -29,7 +29,7 @@ public class MnetServerWANHA : MonoBehaviour
     //private MnetPacketBuffer worldStateBuffer;
 
     //public MnetObject[] objectsBeingSynced;         // All the objects that are being syncronized
-    public List<MnetObject> objectsBeingSynced;
+    public List<WANHAMnetObject> objectsBeingSynced;
     Dictionary<int, MnetClientHandler> clients;    // Client handlers act as player surrogates on the server. IP addresses act as the unique keys
     private List<int> disconnectedClients;
 
@@ -316,7 +316,7 @@ public class MnetServerWANHA : MonoBehaviour
 
     private void Tick()
     {
-        foreach (MnetObject obj in objectsBeingSynced)
+        foreach (WANHAMnetObject obj in objectsBeingSynced)
         {
             obj.RegularTick();
         }
@@ -357,11 +357,11 @@ public class MnetServerWANHA : MonoBehaviour
                 UpdatePlayerHandlers();
                 checkClientsTimer -= Mnet.clientSendRate;
             }
-            if (tickTimer >= Mnet.serverSendRate)
+            if (tickTimer >= Mnet.sendRate)
             {
                 Tick();
-                CreatePacketFromTick(tickTimer - Mnet.serverSendRate);
-                tickTimer -= Mnet.serverSendRate;
+                CreatePacketFromTick(tickTimer - Mnet.sendRate);
+                tickTimer -= Mnet.sendRate;
             }
         }
         // Check and get player packets = Luultavasti aina enint‰‰n yksi paketti vaikka olisi vanhat per‰ss‰

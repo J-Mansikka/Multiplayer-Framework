@@ -10,11 +10,11 @@ public class TESTturha : MonoBehaviour
     public bool fixedTesti;
     public bool fuckingGo;
     public bool testPackets;
-    public MnetObject send;
-    public MnetObject receive;
+    public WANHAMnetObject send;
+    public WANHAMnetObject receive;
     private MnetPacket[] paketit;
-    public MnetMessager messageSender;
-    public MnetMessager messageReceiver;
+    public MnetEndpoint messageSender;
+    public MnetEndpoint messageReceiver;
 
     public delegate void TestDelli();
     TestDelli dell;
@@ -56,7 +56,7 @@ public class TESTturha : MonoBehaviour
 
         if (testPackets)
         {
-            foreach(MnetObject obj in messageSender.worldObjects)
+            foreach(WANHAMnetObject obj in messageSender.worldObjects)
             {
                 obj.ForceSizeTesti();
             }

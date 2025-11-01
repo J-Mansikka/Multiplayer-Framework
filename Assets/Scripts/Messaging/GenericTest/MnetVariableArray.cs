@@ -1,7 +1,10 @@
+/*
+
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+
 
 [Serializable]
 public class MnetVariableArray<T> : MnetVariable 
@@ -48,7 +51,7 @@ public class MnetVariableArray<T> : MnetVariable
         }
     }
 
-    public override void Deserialize(MnetPacket packet) //Span<byte> receivedBytes)
+    public override void Deserialize(Packet packet) //Span<byte> receivedBytes)
     {
         changes.Clear();
 
@@ -59,14 +62,14 @@ public class MnetVariableArray<T> : MnetVariable
         while (bytesRemaining > 0)
         {
             // LUE INDEX
-            index = MnetTools.BytesToInteger(packet.Read(Mnet.bytesReservedForArrayIndex));//receivedBytes.Slice(readPos,Mnet.bytesReservedForArrayIndex));
+            index = MnetTools.BytesToInteger(packet.ReadBytes(Mnet.bytesReservedForArrayIndex));//receivedBytes.Slice(readPos,Mnet.bytesReservedForArrayIndex));
             //readPos += Mnet.bytesReservedForArrayIndex;
             bytesRemaining -= Mnet.bytesReservedForArrayIndex;
 
             // LUE KOKO: RAJOTETTU NYT YHTEEN TAVUUN
             if (_value[index].sizeCategory != VariableSize.Static)
             {
-                _value[index].sizeInBytes = MnetTools.BytesToInteger(packet.Read(Mnet.bytesReservedForLimitedItemSize));//receivedBytes.Slice(readPos, Mnet.bytesReservedForSegmentSize));
+                _value[index].sizeInBytes = MnetTools.BytesToInteger(packet.ReadBytes(Mnet.bytesReservedForLimitedItemSize));//receivedBytes.Slice(readPos, Mnet.bytesReservedForSegmentSize));
                 //readPos += Mnet.bytesReservedForSegmentSize;
                 bytesRemaining -= Mnet.bytesReservedForLimitedItemSize;
             }
@@ -78,7 +81,7 @@ public class MnetVariableArray<T> : MnetVariable
         }
     }
 
-    public override void Serialize(MnetPacket packet)//Span<byte> reservedBytes)
+    public override void Serialize(Packet packet)//Span<byte> reservedBytes)
     {
         // !!!! KOKO VOI MENNÄ RAJAN YLI ELI TARVITAA YHTEINEN KOHTA MISSÄ TARKASTAA SE
 
@@ -90,12 +93,12 @@ public class MnetVariableArray<T> : MnetVariable
             // KOKO PITÄÄ LASKEA EKA.. MUT SIT PITÄIS OLLA LASKETTU JO KU TÄÄ METODI KUTSUTAAN. ELI TEHDÄÄ SAMA KU YKSITTÄISIS ELI KOKO PÄIVITTYY KU ON MUUTOKSIA
 
             // LISÄÄ INDEX (byte)
-            MnetTools.IntegerToBytes(packet.Write(Mnet.bytesReservedForArrayIndex),i);// reservedBytes.Slice(writePos),i,Mnet.bytesReservedForArrayIndex);
+            MnetTools.IntegerToBytes(packet.WriteBytes(Mnet.bytesReservedForArrayIndex),i);// reservedBytes.Slice(writePos),i,Mnet.bytesReservedForArrayIndex);
             //writePos += Mnet.bytesReservedForArrayIndex;
             // LISÄÄ KOKO (_Value[i] size in bytes)
             if (_value[i].sizeCategory != VariableSize.Static)
             {
-                MnetTools.IntegerToBytes(packet.Write(Mnet.bytesReservedForLimitedItemSize), _value[i].sizeInBytes);//reservedBytes.Slice(writePos), _value[i].sizeInBytes, Mnet.bytesReservedForSegmentSize);
+                MnetTools.IntegerToBytes(packet.WriteBytes(Mnet.bytesReservedForLimitedItemSize), _value[i].sizeInBytes);//reservedBytes.Slice(writePos), _value[i].sizeInBytes, Mnet.bytesReservedForSegmentSize);
                 //writePos += Mnet.bytesReservedForSegmentSize;
             }
             // LISÄÄ DATA
@@ -154,3 +157,4 @@ public class MnetVariableArray<T> : MnetVariable
 
 
 }
+*/

@@ -2,7 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class MnetPlayerInputs : MnetObject
+public class MnetPlayerInputs : WANHAMnetObject
 {
     public MnetClientTest clint;
 

@@ -3,16 +3,17 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+[Serializable]
 public class MnetFloat : MnetVariableType<float>
 {
-    public override void Deserialize(MnetPacket packet) //Span<byte> receivedBytes)
+    public override void Deserialize(Span<byte> receivedBytes)
     {
-        SetReceivedValue(MnetTools.BytesToFloat(packet.Read(sizeInBytes)));
+        ReadValue(MnetTools.BytesToFloat(receivedBytes));
     }
 
-    public override void Serialize(MnetPacket packet)//Span<byte> reservedBytes)
+    public override void Serialize(Span<byte> reservedBytes)
     {
-        MnetTools.FloatToBytes(packet.Write(sizeInBytes), Value);
+        MnetTools.FloatToBytes(reservedBytes, Value);
     }
 
     public override void SetSize()

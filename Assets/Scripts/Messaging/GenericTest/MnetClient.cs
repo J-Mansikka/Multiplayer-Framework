@@ -5,7 +5,7 @@ using System.Net.Sockets;
 using System.Net;
 using UnityEngine.SceneManagement;
 
-public class MnetClient : MnetMessager
+public class MnetClient : MnetEndpoint
 {
     public string localAddress = "192.168.1.2";
     public int port = 28501;
@@ -16,16 +16,16 @@ public class MnetClient : MnetMessager
 
     private void Awake()
     {
-        manager = GetComponent<MnetInstanceManager>();
+        //          manager = GetComponent<MnetInstanceManager>();
         worldBuffer = new MnetPacketBuffer(Mnet.clientPacketBufferSize);
         IPEndPoint localEP = new IPEndPoint(IPAddress.Parse(localAddress), port);
-        clientConnection = new MnetConnection(-1, localEP, Mnet.serverPacketBufferSize);
+        //clientConnection = new MnetConnection(-1, localEP, Mnet.serverPacketBufferSize);
         messenger = new MnetPacket(false);
         worldObjectIDs = new HashSet<int>();
         activeConnections = new List<MnetConnection>();
         messenger = new MnetPacket(false);
-        worldObjects = new MnetObject[Mnet.maxSyncedObjects];
-        manager.SetupInstanceManager(worldObjects, Ownership.Remote);
+        worldObjects = new WANHAMnetObject[Mnet.maxSyncedObjects];
+        //          manager.SetupInstanceManager(worldObjects, Ownership.Remote);
 
         // !!! DEBUG
         //connection.remoteObjects = new MnetObject[10];
@@ -63,7 +63,7 @@ public class MnetClient : MnetMessager
         // CONNECTED
         if (online)
         {
-            if (gameIsRunning && clientConnection.state >= ConnectionState.Desynced)
+            if (gameIsRunning && clientConnection.state >= WANHAAConnectionState.Desynced)
             {
                 NetworkUpdate();
             }
@@ -84,17 +84,17 @@ public class MnetClient : MnetMessager
                     string receivedMessage = messenger.ReadMessage();
                     print("CLIENT: Message Received = " + receivedMessage);
                     print("CLIENT STATE: " + clientConnection.state);
-                    if (clientConnection.state == ConnectionState.HandshakeRequest && receivedMessage == Mnet.messageHandshakeResponse)
+                    if (clientConnection.state == WANHAAConnectionState.HandshakeRequest && receivedMessage == Mnet.messageHandshakeResponse)
                     {
                         //CreateConnection(readPos);
                         CreateConnection();
                     }
-                    else if (clientConnection.state == ConnectionState.Connecting && receivedMessage == Mnet.messageNewConnectionVerified)
+                    else if (clientConnection.state == WANHAAConnectionState.Connecting && receivedMessage == Mnet.messageNewConnectionVerified)
                     {
                         //BeginInitialization(readPos);
                         BeginInitialization();
                     }
-                    else if (clientConnection.state == ConnectionState.Initializing)
+                    else if (clientConnection.state == WANHAAConnectionState.Initializing)
                     {
                         InitializingClientGame();
                         // Tsekkaa puuttuva snapshot paketti JA tick buffer? (processestickseparation)
@@ -134,7 +134,7 @@ public class MnetClient : MnetMessager
         {
             clientConnection.socket.SendTo(messenger.Data, handshaker);
         }
-        clientConnection.state = ConnectionState.HandshakeRequest;
+        clientConnection.state = WANHAAConnectionState.HandshakeRequest;
         
         print("CLIENT: SEND HANDSHAKE REQUEST");
     }
@@ -153,7 +153,7 @@ public class MnetClient : MnetMessager
 
         // Bind the socket to the endpoint of the new connection
         clientConnection.ConnectTo(new IPEndPoint(newAddress, newPort));
-        clientConnection.state = ConnectionState.Connecting;
+        clientConnection.state = WANHAAConnectionState.Connecting;
 
         // Send a message to test the new connection
         messenger.Reset();
@@ -196,7 +196,7 @@ public class MnetClient : MnetMessager
         CreatePlayerObjects(clientConnection);
 
         Send(messenger, clientConnection, PacketPriority.Important);
-        clientConnection.state = ConnectionState.Initializing;
+        clientConnection.state = WANHAAConnectionState.Initializing;
         print("CLIENT: INITIALIZING CONNECTION");
     }
 
@@ -216,7 +216,7 @@ public class MnetClient : MnetMessager
             
             // Client has connected and we are ready to simulate ticks
             activeConnections.Add(clientConnection);
-            clientConnection.state = ConnectionState.Connected;
+            clientConnection.state = WANHAAConnectionState.Connected;
             clientConnection.isActive = true;
         }
     }

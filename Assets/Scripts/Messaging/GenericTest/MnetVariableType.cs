@@ -19,11 +19,19 @@ public abstract class MnetVariableType<T> : MnetVariable
         set
         {
             //previous = _value;    !!!! Bufferointi pit‰is tulla userilta tai k‰ytt‰‰ paketteja
+            previous = value;
             _value = value;
             //GetAndSet();  // OIkeesit eiks t‰‰ oo vaa vitu array messenger paskaa?
             // When item changes and it does not have a static size, we need to call SetSize() to calculate it
             if (sizeCategory != VariableSize.Static) SetSize();
+            // ??? Tekeekˆ t‰l en‰‰ mit‰‰n?
             hasChanged = true;
+
+
+
+            owner.SerializeVariable(this);
+
+
             /*
             hasChanged = true;
             if (varyingSize)
@@ -35,7 +43,7 @@ public abstract class MnetVariableType<T> : MnetVariable
         }
     }
 
-    protected void SetReceivedValue(T newValue)
+    protected void ReadValue(T newValue)
     {
         _value = newValue;
     }

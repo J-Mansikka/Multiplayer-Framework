@@ -13,8 +13,7 @@ public static class MnetTools
     // The default value used is the segment size, since it sees most action
     public static int BytesToInteger(Span<byte> bytes)//, int byteSize)
     {
-        int byteSize = bytes.Length;
-        switch (byteSize)
+        switch (bytes.Length)
         {
             case 1:
                 return bytes[0];
@@ -24,7 +23,7 @@ public static class MnetTools
                 return BinaryPrimitives.ReadInt32LittleEndian(bytes);
             default:
                 throw new NotSupportedException
-                    ("Tried to read an unaccounted integer type that uses "+byteSize+" bytes.");
+                    ("Tried to read an unaccounted integer type that uses "+bytes.Length+" bytes.");
         }
     }
 

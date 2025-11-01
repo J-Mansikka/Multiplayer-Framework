@@ -27,7 +27,7 @@ public class MnetClientWANHA : MonoBehaviour
     private MnetPacketBuffer playerBuffer;
     private MnetPacketBuffer worldStateBuffer;
 
-    public List<MnetObject> objectsBeingSynced;
+    public List<WANHAMnetObject> objectsBeingSynced;
 
     private int nextExpectedPacketNumber;   // Saapuva (tyhj‰ slotti)
     private int nextPacketNumberToProcess;  // Seuraava luettava paketti numero
@@ -198,7 +198,7 @@ public class MnetClientWANHA : MonoBehaviour
 
             // REG
 
-            foreach (MnetObject obj in objectsBeingSynced)
+            foreach (WANHAMnetObject obj in objectsBeingSynced)
             {
                 obj.RegularTick();
             }
@@ -458,7 +458,7 @@ public class MnetClientWANHA : MonoBehaviour
 
         //// Napataan seuraava objecti jos on olemassa ja seuraavassa loopissa k‰sitell‰‰n
         //while (currentObjectIndex < objectsBeingSynced.Length)
-        foreach (MnetObject activeObject in objectsBeingSynced)
+        foreach (WANHAMnetObject activeObject in objectsBeingSynced)
         {
             //activeObject = objectsBeingSynced[currentObjectIndex];
             /*

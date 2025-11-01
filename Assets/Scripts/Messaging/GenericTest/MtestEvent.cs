@@ -5,7 +5,7 @@ using UnityEngine;
 
 
 
-public class MtestEvent : MnetObject
+public class MtestEvent : WANHAMnetObject
 {
     public MnetInt numba;
 

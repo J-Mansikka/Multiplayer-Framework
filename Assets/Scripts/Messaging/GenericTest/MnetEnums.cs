@@ -21,6 +21,11 @@ public enum WANHAConnectionState
     NotActive, ContactServer, Handshake, SyncWorldState, Connected, MissingPackets, Reconcile, Disconnected
 }
 
+public enum ConnectionState
+{
+    Active, Initializing, Handshake, Connecting, Loading
+}
+
 public enum Ownership
 {
     Auto, // Will be set automatically when filling synced object arrays
@@ -36,7 +41,7 @@ public enum ObjectInstanceAction: byte
     Despawned, Spawned
 }
 
-public enum ConnectionState
+public enum WANHAAConnectionState
 {
     // CLIENT: The networking system is not active and there is no connection
     // SERVER NCS: If the server is active, it will have a New Connection Socket (NCS) listening for new connection requests
@@ -122,11 +127,17 @@ public enum ConnectionState
 
 }
 
+
+public enum PacketType
+{
+    Regular = 0, ResendRequest = 1, SystemMessage = 100
+}
+
+
 // First byte on each packet. Notifies the recipient of the type of the message
 // ServerRegular: 
 // Snapshot: Snapshot is a server packet that contains all the data of the world. Used once when joining and if there is a short disconnect or desync
 // ServerMissedPacket: Server noticed a missing packet and needs the client to resend it. Should be rare since client packets already contain old ones
-//
 public enum MessageType : byte
 {
     // KOSKA YHTEINEN MESSAGER POHJA JA PAKETTEJA EI PALAUTAETA VOIDAA KÄYTTÄÄ SAMAA NUMEROA MOLEMPIIN SUUNTII

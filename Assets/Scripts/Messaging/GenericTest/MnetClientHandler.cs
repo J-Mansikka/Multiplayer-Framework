@@ -33,7 +33,7 @@ public class MnetClientHandler
     private MnetPacketBuffer serverBuffer;
     private MnetPacketBuffer worldSnapshotBuffer;
     //private Queue<short> freeObjectIndex;
-    public MnetObject[] objectsBeingSynced;
+    public WANHAMnetObject[] objectsBeingSynced;
 
 
     private int currentPacketNumber;

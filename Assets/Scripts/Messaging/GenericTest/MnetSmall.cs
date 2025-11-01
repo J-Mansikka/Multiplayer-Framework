@@ -2,7 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class MnetSmall : MnetObject
+public class MnetSmall : WANHAMnetObject
 {
     public MnetBool booliTest;
     private void Awake()

@@ -8,13 +8,13 @@ using UnityEngine;
 [Serializable]
 public class MnetBool : MnetVariableType<bool[]>
 {
-    public override void Deserialize(MnetPacket packet)//Span<byte> receivedBytes)
+    public override void Deserialize(Span<byte> receivedBytes)
     {
         int bitFlag = 1;
         int value = 0;
         for (int i = 0; i < 8; i++)
         {
-            value = bitFlag & packet.ReadSingleByte();//receivedBytes[0] & bitFlag;
+            value = bitFlag & receivedBytes[0] & bitFlag;
             if (value > 0)
             {
                 Set(true,i);                
@@ -26,19 +26,18 @@ public class MnetBool : MnetVariableType<bool[]>
             bitFlag = bitFlag << 1;
         }
     }
-    public override void Serialize(MnetPacket packet)//Span<byte> reservedBytes)
+    public override void Serialize(Span<byte> reservedBytes)
     {
         int bitFlag = 1;
         for (int i = 0; i < 8; i++)
         {
             if (Value[i])
             {
-                packet[packet.currentLength] = (byte)(packet[packet.currentLength] | bitFlag);
-                //reservedBytes[0] = (byte)(reservedBytes[0] | bitFlag);
+                //packet[packet.currentLength] = (byte)(packet[packet.currentLength] | bitFlag);
+                reservedBytes[0] = (byte)(reservedBytes[0] | bitFlag);
             }
             bitFlag = bitFlag << 1;
         }
-        packet.currentLength++;
     }
 
     public override void SetSize()

@@ -179,7 +179,7 @@ public class MnetPacket
     */
 
     // Returns the available space in the packet as a span
-    public Span<byte> AvailableSpace()
+    public Span<byte> AvailableBytes()
     {
         // Get remaining space on the buffer
         return _data.AsSpan(currentLength,Mnet.maxPacketDataSize - currentLength);//, ServerSettings.maxPacketSize - currentLength);

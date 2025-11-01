@@ -1,15 +1,13 @@
 using System;
-using System.Buffers.Binary;
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 // This is some mad scientist stuff, but we can store the header length AS the category value and use it to increase an objects size accurately
 public enum VariableSize
 {
-    Static = 0,
-    Limited = Mnet.variableVaryingHeaderLength,
-    Splittable = Mnet.bytesReservedForSplitItemSize, // + MnetSettings.variableDividableHeaderAdjustment,
+    // These values mark how many bytes are needed to store the size of the variable if it can change between ticks
+    Static = 0, // Static variables have no need to store the size between changes so this should ALWAYS be 0
+    Limited = 1, // Limited size is set to 1 (max 255 bytes) but if increased, the splittable size will need to increase to 3 or more
+    Splittable = 2, // Splittable items can be over the max packet size so 2 or more always
     //DoNotUseSplitAutoDetection = MnetSettings.variableMultipartHeaderLength   // + MnetSettings.variableDividableHeaderAdjustment
 }
 [Serializable]
@@ -49,8 +47,10 @@ public abstract class MnetVariable
     //public byte orderIndex = 0; // ?
     [HideInInspector]
     public byte[] bytes;    // Currently only used to store bytes if the item is split
-    private int splitBlockWritePos;   // WHAT DIS?
-    private int splitBlockBytesRemaining;   // Stores the amount of needed bytes of a split item
+    //private bool storedBytes = false;
+    private int splitWritePos;   // WHAT DIS?
+    private int splitReadPos;
+    private int splitBytesRemaining;   // Stores the amount of needed bytes of a split item
     //       !!!! DEBUG POISTA KU VALMIS !!!!!!!!
     [HideInInspector]
     public string variableName;
@@ -61,16 +61,132 @@ public abstract class MnetVariable
     public byte flagValue;
     */
     [HideInInspector]
+    public WANHAMnetObject WANHAowner;
+
+    [HideInInspector]
     public MnetObject owner;
+    [HideInInspector]
+    public int id;
 
-    public abstract void Serialize(MnetPacket packet);//Span<byte> reservedBytes);
+    public abstract void Serialize(Span<byte> reservedBytes);
 
-    public abstract void Deserialize(MnetPacket packet);//Span<byte> receivedBytes);
+    public abstract void Deserialize(Span<byte> receivedBytes);
 
     // !! !! MITES COUNT LUETAAN? SE ETTÄ OBJEKTI VOI ANTAA TAVUT VAATII ETTÄ TIETÄÄ KOON? ELI OBJEKTI TUNNISTAA ETTÄ ON JAETTTU
     // JA SEN PERIAATTEEL ANTAA OIKEEN MÄÄRÄN DATAA JA TIEDOT ELI TOTAL SIZE JA START POS
     // TOTALI PITÄÄ OTTAA KOSKA OBJEKTI TARVII SEN MUTTA STARTPOS JA MÄÄRÄ VOIDAA KATTOO TÄÄLLÄ
-    public void ReadSplitSegment(MnetPacket packet)//Span<byte> incomingBytes)
+
+    public void PrepareForSplitWrite()
+    {
+        // Check if local byte array can hold the current value or create the array if this is the first time
+        if (bytes.Length < sizeInBytes || bytes == null)
+        {
+            bytes = new byte[sizeInBytes];
+        }
+        // We need these numbers to keep track of the write progress
+        splitWritePos = 0;
+        splitBytesRemaining = sizeInBytes;
+        // Convert to bytes
+        Serialize(bytes.AsSpan(0,sizeInBytes));
+    }
+
+    public void PrepareForSplitRead()
+    {
+        // Check if local byte array can hold the incoming value or create the array if this is the first time
+        if (bytes.Length < sizeInBytes || bytes == null)
+        {
+            bytes = new byte[sizeInBytes];
+        }
+        // We need to track bytes that have already been copied
+        splitReadPos = 0;
+        splitBytesRemaining = sizeInBytes;
+    }
+
+    // Return value is the amount of bytes written. PacketManager needs to keep track of how many bytes are written and when to change packets
+    public int TryWriteSplittable(Span<byte> bytesLeftInPacket)
+    {
+        // Check if this is the first write attempt on this update
+        if (splitBytesRemaining == 0)
+        {
+            // Check if the value can be written without splitting
+            if (bytesLeftInPacket.Length >= sizeInBytes)
+            {
+                Serialize(bytesLeftInPacket);
+                return sizeInBytes;
+            }
+            else
+            {
+                // We need to prepare the item by converting it to bytes
+                PrepareForSplitWrite();
+            }
+        }
+
+        // The amount we write is limited either by the available space or the amount of bytes left
+        int writeAmount = Math.Min(bytesLeftInPacket.Length, sizeInBytes - splitWritePos);
+
+
+
+        bytes.AsSpan(splitWritePos,writeAmount).CopyTo(bytesLeftInPacket);
+        /*
+        for (int i = 0; i < writeAmount; i++)
+        {
+            Debug.Log("BYTE " + (splitWritePos + i) + ": " + bytes[splitWritePos + i]);
+        }
+        */
+        splitWritePos += writeAmount;
+
+        /*
+        // Copy bytes one by one to packet
+        for (int i = 0; i < writeAmount; i++)
+        {
+            bytesLeftInPacket[i] = bytes[splitWritePos++];
+        }
+        */
+        splitBytesRemaining -= writeAmount;
+
+        return writeAmount;
+    }
+
+    public void TryReadSplittable(Span<byte> bytesLeftInPacket)
+    {
+        
+        // 1. Tunnista eka luku (preparation)
+        // 2. Lue dataa ja palauta tarviiko lisää kakkua. HEADER PITÄÄ MANAGERIN SKIPATA? TARVITAANKO HEADERI JÄLKIMMÄISIS?
+        
+        // If true, it means that this will be the first read attempt so we need to prepare for the process
+        if(splitBytesRemaining == 0)
+        {
+            PrepareForSplitRead();
+        }
+        
+        // Amount to read is either remainder of the variable or rest of the packet
+        //int readAmount = Math.Min(bytesLeftInPacket.Length, splitBytesRemaining);
+
+        /*
+        for(int i = 0;i < readAmount; i++)
+        {
+            bytes[splitReadPos++] = bytesLeftInPacket[i];
+        }
+        */
+        bytesLeftInPacket.CopyTo(bytes.AsSpan(splitReadPos));
+        /*
+        for (int i = 0; i < readAmount; i++)
+        {
+            Debug.Log("R_BYTE " + (splitReadPos+i) + ": " + bytes[splitReadPos + i]);
+        }
+        */
+        splitReadPos += bytesLeftInPacket.Length;
+        splitBytesRemaining -= bytesLeftInPacket.Length;
+
+        // Check if we are finished and can deserialize, or if we need to continue on to another packet
+        if(splitBytesRemaining == 0)
+        {            
+            Deserialize(bytes.AsSpan(0,sizeInBytes));
+        }
+
+    }
+    /*
+    public void WANHAReadSplitSegment(Packet packet)//Span<byte> incomingBytes)
     {
         // !!!! Täältä kai puuttuu mun mahtava idea
         // että splitti voi tulla yhdessä erässä eli tsekkaa bit ja tee kerralla. Voiko vaan oikasta deserialize kautta
@@ -99,9 +215,9 @@ public abstract class MnetVariable
         }
 
         // If this is the first time this split variable is processed, mark down the size and increase the byte array if needed
-        if (splitBlockBytesRemaining == 0)
+        if (splitBytesRemaining == 0)
         {
-            splitBlockBytesRemaining = totalSize;
+            splitBytesRemaining = totalSize;
             // If the item is larger than the reserved
             if (bytes.Length < totalSize)
             {
@@ -125,10 +241,10 @@ public abstract class MnetVariable
         {
             bytes[startPos + i] = packet.ReadSingleByte();//[packet.readPosition++];//incomingBytes[i+readPos];
         }
-        splitBlockBytesRemaining -= receivedAmount;
+        splitBytesRemaining -= receivedAmount;
 
         // If remaining data amount is zero, we should be finished and have all the bytes the variable needs so we can now deserialize it
-        if(splitBlockBytesRemaining == 0)
+        if(splitBytesRemaining == 0)
         {
             Debug.Log("GOT ALL PIECES SO WE CAN READ WHOLE THING");
             Deserialize(packet); //bytes.AsSpan(0, totalSize));
@@ -139,24 +255,12 @@ public abstract class MnetVariable
         //return Mnet.variableMultipartHeaderLength + variableSegmentSize;
     }
 
-    public void WriteSplitSegment(MnetPacket packet)
+    public bool WANHAWriteSplitSegment(Packet packet)
     {
             //Debug.Log("SPACE REMAINING IN SPLIT " + spaceRemaining);
         // Aika paljo juttui mitä tarvitaan on vaan object puolella hmmmMMMMmmmmm
 
-        /*
-         * Sama idea ku lukiessa. Onko tää eka kohta eli jos alotus 0, ni pitää Serialize(this.bytes)
-         * Sitte vaan kopioidaa niin paljo ku on tilaa ja lopetetaan ja merkataa mihi jäätiin. Sitte ku remaining = 0 ni hasChanged = false
-         * Pitää lisätä myös headeri eli seurata jos koko menee yli segmenti koon
-         * Millo päivitetään koko?
-         * 
-         * BIT FLAG ON SMALLL ENDIAN JEESUS
-         * 
-         * Minus flipt toimii eli nyt vaan kirjotetaan niin kauan ku mahtuu ja huomioidaa ei splitatu
-         * 
-         * 
-         * 
-        */
+
 
         // UPDATE SIZE ?
         // CHECK IF CAN FIT WITHOUT SPLITTING
@@ -171,7 +275,7 @@ public abstract class MnetVariable
 
 
         // If this value is zero, it means that this is the first write attempt for this item in this update
-        if (splitBlockBytesRemaining == 0)
+        if (splitBytesRemaining == 0)
         {
 
             //SetSize();
@@ -187,7 +291,7 @@ public abstract class MnetVariable
                 Serialize(packet);
                 hasChanged = false;
                 // We need to return the whole amount of written bytes, so the size of the header and the data combined
-                return;
+                return false;
                 //return Mnet.bytesReservedForSplitItemSize + sizeInBytes;
             }
             // This first step is mandatory when item is going to be send in pieces
@@ -202,7 +306,7 @@ public abstract class MnetVariable
                 // Serialize the value into stored bytes so we can send it in pieces
                 Serialize(packet);
                 // We need to track how much we have left to send, so set up the initial value
-                splitBlockBytesRemaining = sizeInBytes;                
+                splitBytesRemaining = sizeInBytes;                
             }
         }
 
@@ -217,17 +321,17 @@ public abstract class MnetVariable
 
         // Fill out the header data
         MnetTools.IntegerToBytes(packet.Write(Mnet.bytesReservedForSplitItemSize), sizeInBytes);        // Total size of item
-        MnetTools.IntegerToBytes(packet.Write(Mnet.bytesReservedForSplitItemSize), splitBlockWritePos); // Start position
+        MnetTools.IntegerToBytes(packet.Write(Mnet.bytesReservedForSplitItemSize), splitWritePos); // Start position
         MnetTools.IntegerToBytes(packet.Write(Mnet.bytesReservedForSplitItemSize), writeAmount);          // Amount of bytes
 
         // The amount that we will write is limited by the space available or by the amount we have left to write
-        writeAmount = Math.Min(packet.SpaceRemaining, splitBlockBytesRemaining);
+        writeAmount = Math.Min(packet.SpaceRemaining, splitBytesRemaining);
 
         int writePos = packet.currentLength;
         // Copy as much bytes into the outgoing span as we can
         for (int i = 0; i < writeAmount; i++)
         {
-            packet[writePos + i] = bytes[splitBlockWritePos + i];
+            packet[writePos + i] = bytes[splitWritePos + i];
             //outgoingBytes[writePos + i] = bytes[splitBlockWritePos + i];
         }
 
@@ -235,26 +339,22 @@ public abstract class MnetVariable
 
 
         // Remove the amount written from the total
-        splitBlockBytesRemaining -= writeAmount;
+        splitBytesRemaining -= writeAmount;
         // Move the write position forward by the same amount
-        splitBlockWritePos += writeAmount;
+        splitWritePos += writeAmount;
 
         // If we have finished writing, we will mark the variable as done and reset the write position
-        if (splitBlockBytesRemaining == 0)
+        if (splitBytesRemaining == 0)
         {
             hasChanged = false;
-            splitBlockWritePos = 0;
+            splitWritePos = 0;
         }
         
-        /*
-        Debug.Log("(SPLIT WROTE) TOTAL: " + MnetTools.BytesToInt(outgoingBytes, MnetSettings.bytesReservedForSplitItemSize) +
-            ". START: " + MnetTools.BytesToInt(outgoingBytes.Slice(MnetSettings.bytesReservedForSplitItemSize, 2), 2) +
-            ". AMOUNT: " + outgoingBytes[4]);
-        */
+
         // We return the amount of space that was used, meaning the header bytes and the actual data bytes
         //return Mnet.variableMultipartHeaderLength + writeAmount;
     }
-
+        
     // PITÄÄ AINAKI TESTATES OLLA ERIKSEEN (EHKÄ MUUTENKI HYVÄ VARAL) ET VOI KUTSUA MILLO VAAN
     public void UpdateSize()
     {
@@ -262,42 +362,17 @@ public abstract class MnetVariable
         {
             SetSize();
 
-            /*
-            // !!!! TÄÄLTÄ LÄHTEE MELKEEN KAIKKI VITTUU, MIKÄ VARMASTI PROSESSOIKI NOPEEMMI
-            if (sizeCategory > VariableSize.Varies)
-            {
-                // Pitää varata bufferi vai lisätä vaan split koko ja sen mukaan erotella?
-                if (sizeInBytes + owner.flagByteCount + MnetSettings.bytesReservedForSplitItemSize
-                    <= MnetSettings.bytesReservedForSegmentSize)
-                {
-                    sizeCategory = VariableSize.DividableSingle;
-                }
-                else
-                {
-                    sizeCategory = VariableSize.DividableSplit;
-                }
-                // Divided items have an extra adjustment to ensure enum values are always unique, so we need to remove it from the size
-                sizeInBytes -= MnetSettings.variableDividableHeaderAdjustment;
-            }
-            // Add the size of the header to the size of the item
-            sizeInBytes += (int)sizeCategory;
-            */
+
         }
         // Add the size of the item and possibly the header to objects total size
             //Debug.Log("ITEM SIZE OF "+variableName + " IS " + sizeInBytes);
 
-        // Mikä tää logiikka on? Tulee pureee perseeseen. Vittu kommentoi paremmi
-        /*
-        if (sizeInBytes <= Mnet.maxSegmentSize)
-        { 
-            //owner.currentSize += (int)sizeCategory;
-        }
-        */
+
         //owner.currentSize += sizeInBytes;
         //hasChanged = true;
 
     }
-
+*/
     // Used to setup the variable before use. Set the category of the item here and the bytes needed if the size is static.
     // E.g. MnetInt only needs the byte size of the 32-bit integer and to be set static:
     // sizeInBytes = 4;

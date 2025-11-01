@@ -19,7 +19,7 @@ public class MnetConnection
     // Remote endpoint we connect to
     public IPEndPoint remoteEP;
     // We use this enum to keep track of the connection state
-    public ConnectionState state;
+    public WANHAAConnectionState state;
     // How many duplicates of the packets we send. On bad or slow connections we can increase this amount to make sure all packets will come through
     public int sendRate;
     // Objects that the remote has control over
@@ -29,7 +29,7 @@ public class MnetConnection
     // Last received tick of the remote user
     public int tick;
     // Next expected packet number from the remote
-    public int nextIncomingPacketNumber;
+    public int expectedPacketNumber;
     // Next packet number to process
     public int nextPacketToProcessNumber;
     // Everytime the messager does not receive a packet from the connection, we will increment this counter to monitor the delay
@@ -48,9 +48,14 @@ public class MnetConnection
     public MnetPacketBuffer playerBuffer;
     /// T‰nne vois sitte lis‰t‰ bool connected etc?
     /// Jos saa messageri toimimaan molemmil servul ja clientil ilma isompaa ongelmaa ni t‰‰ vois olla se erotus paikka?
-    /// 
 
-    public MnetConnection(int playerNumber, IPEndPoint endpoint, int bufferSize = Mnet.serverPacketBufferSize, int setSendRate = 1)
+    // UURET
+    public PacketManager playerPackets;
+    public Packet messager;
+    public int latestPacketNumberReceived;
+    public ConnectionState connectionState;
+
+    public MnetConnection(int playerNumber, IPEndPoint endpoint, MnetNetwork owner, int bufferSize = Mnet.serverPacketBufferSize, int setSendRate = 1)
     {
         missingPackets = new HashSet<int>();
         snapshotPacketsLeft = new HashSet<int>();
@@ -63,6 +68,8 @@ public class MnetConnection
         playerBuffer = new MnetPacketBuffer(bufferSize);
         snapshotRequestTick = 0;
         sendRate = setSendRate;
+        playerPackets = new PacketManager(Mnet.clientPacketBufferSize, owner);
+        messager = new Packet();
     }
 
     public void ConnectTo(IPEndPoint newEndpoint)

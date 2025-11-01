@@ -1,21 +1,22 @@
+/*
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class MnetInstanceManager : MnetObject, IMnetInstanceManager
+public class MnetInstanceManager : WANHAMnetObject, IMnetInstanceManager
 {
     public GameObject spawnHolder;
-    private MnetMessager messager;
+    private MnetEndpoint messager;
     private MnetVariableArray<MnetInstanceInfo> instances;
-    private MnetObject[] syncedObjects;
-    public IMnetInstanceSpawner spawner;
+    private WANHAMnetObject[] syncedObjects;
+    public IMnetUserInstanceSpawner spawner;
     private Queue<int> availableInstanceID;
     private Queue<int> objectsToActivate;
 
     private void Awake()
     {
-        spawner = spawnHolder.GetComponent<IMnetInstanceSpawner>();
-        messager = GetComponent<MnetMessager>();
+        spawner = spawnHolder.GetComponent<IMnetUserInstanceSpawner>();
+        messager = GetComponent<MnetEndpoint>();
         availableInstanceID = new Queue<int>();
         objectsToActivate = new Queue<int>();
         instances = new MnetVariableArray<MnetInstanceInfo>();
@@ -37,7 +38,7 @@ public class MnetInstanceManager : MnetObject, IMnetInstanceManager
     }
 
 
-    public void SetupInstanceManager(MnetObject[] worldObjectArray, Ownership role)
+    public void SetupInstanceManager(WANHAMnetObject[] worldObjectArray, Ownership role)
     {
         syncedObjects = worldObjectArray;
         ownership = role;
@@ -120,13 +121,13 @@ public class MnetInstanceManager : MnetObject, IMnetInstanceManager
         //syncedObjects = arrayToUse;
         //syncedObjects = new MnetObject[MnetSettings.maxSyncedObjects];
 
-        MnetObject[] sceneObjects = spawner.GetActiveObjects();
+        WANHAMnetObject[] sceneObjects = spawner.GetActiveObjects();
         if (sceneObjects != null)
         {
             for (int i = 0; i < sceneObjects.Length; i++)
             {
                 // Process the scene object by giving it its instanceID and adding it to the synced objects array
-                MnetObject curObj = sceneObjects[i];
+                WANHAMnetObject curObj = sceneObjects[i];
                 curObj.objectInstanceID = availableInstanceID.Dequeue();
                 syncedObjects[curObj.objectInstanceID] = curObj;
             }
@@ -134,13 +135,13 @@ public class MnetInstanceManager : MnetObject, IMnetInstanceManager
 
     }
 
-    public void AddObjectToArray(MnetObject obj)
+    public void AddObjectToArray(WANHAMnetObject obj)
     {
         obj.objectInstanceID = availableInstanceID.Dequeue();
         syncedObjects[obj.objectInstanceID] = obj;
     }
 
-    public void LocalSpawn(MnetObject spawnedObj)
+    public void LocalSpawn(WANHAMnetObject spawnedObj)
     {
         AddObjectToArray(spawnedObj);
         if(spawnedObj.ownership == Ownership.Auto) spawnedObj.ownership = Ownership.Local;
@@ -149,7 +150,7 @@ public class MnetInstanceManager : MnetObject, IMnetInstanceManager
         objectsToActivate.Enqueue(spawnedObj.objectInstanceID);
     }
 
-    public void LocalDespawn(MnetObject despawningObj)
+    public void LocalDespawn(WANHAMnetObject despawningObj)
     {
         syncedObjects[despawningObj.objectInstanceID] = null;
         availableInstanceID.Enqueue(despawningObj.objectInstanceID);
@@ -159,13 +160,13 @@ public class MnetInstanceManager : MnetObject, IMnetInstanceManager
 
     public void RemoteSpawn(int newObjectID)
     {
-        MnetObject newObj = spawner.SpawnRequest(newObjectID);
+        WANHAMnetObject newObj = spawner.SpawnRequest(newObjectID);
         if(newObj.ownership == Ownership.Auto) newObj.ownership = Ownership.Remote;
         AddObjectToArray(newObj);
         objectsToActivate.Enqueue(newObj.objectInstanceID);
     }
 
-    public void RemoteDespawn(MnetObject objToDespawn)
+    public void RemoteDespawn(WANHAMnetObject objToDespawn)
     {
         spawner.DespawnRequest(objToDespawn);
         syncedObjects[objToDespawn.objectInstanceID] = null;
@@ -176,4 +177,7 @@ public class MnetInstanceManager : MnetObject, IMnetInstanceManager
     {
         instances[instance].Value = new MnetInstanceMessageSegment(act, instance, obj);
     }
+
+    
 }
+*/

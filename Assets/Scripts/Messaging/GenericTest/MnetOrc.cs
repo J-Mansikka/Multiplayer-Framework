@@ -5,7 +5,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
 
-public class MnetOrc : MnetObject
+public class MnetOrc : WANHAMnetObject
 {
     public bool client;
     public MnetStringUnicode name;
@@ -14,8 +14,8 @@ public class MnetOrc : MnetObject
     public MnetStringUnicode longTest_1;
     public MnetStringUnicode longTest_2;
     public MnetStringUnicode longTest_3;
-    public MnetVariableArray<MnetInt> intit;
-    public MnetVariableArray<MnetStringUnicode> stringit;
+    //public MnetVariableArray<MnetInt> intit;
+    //public MnetVariableArray<MnetStringUnicode> stringit;
 
     private MnetVector3 startPos;
     private MnetVector3 endPos;
