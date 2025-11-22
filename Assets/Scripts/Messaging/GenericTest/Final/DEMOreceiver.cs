@@ -20,13 +20,7 @@ public class DEMOreceiver : MonoBehaviour
     {
         if (GET)
         {
-            GET = false;
-            senderEP.worldPackets.packetToWriteOn.ClosePacket();
-            for (int i = 0; i < 5; i++)
-            {
-                ep.worldPackets.GetPacket(i).DemoGetData(senderEP.worldPackets.GetPacket(i).bytes);
-            }
-            ep.DEMOtestTick();
+
 
         }
 

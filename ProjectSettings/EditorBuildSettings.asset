@@ -6,6 +6,9 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
-    path: Assets/Scenes/SampleScene.unity
-    guid: 9fc0d4010bbf28b4594072e72b8655ab
+    path: Assets/Scenes/FinalNakkila.unity
+    guid: e2b4e2642e44b4046823fbfb277f9fb6
+  - enabled: 1
+    path: Assets/Scenes/KakkosScene.unity
+    guid: b84e04a5b8e829c4997c58a448fd3605
   m_configObjects: {}

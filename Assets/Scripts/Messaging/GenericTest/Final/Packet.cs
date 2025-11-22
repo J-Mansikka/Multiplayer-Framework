@@ -7,10 +7,12 @@ public class Packet
     public byte[] bytes;
     public int currentLength;
     public int readPosition;
-    public PacketType packetType { get; private set; }
-    public bool isNew { get; private set; }
+    public PacketType PacketType { get; private set; }
+    public bool isNew;
 
     public Packet nextPacket;
+
+    public int debugIndex;
 
     // Span of current bytes on the packet
     public Span<byte> Data
@@ -24,10 +26,12 @@ public class Packet
         set { bytes[key] = value; }
     }
 
-
-    public Packet()
+    public Packet(PacketType regularPacketType)
     {
         bytes = new byte[Mnet.maxPacketDataSize];
+        readPosition = Mnet.headerCombinedLength;
+        currentLength = Mnet.headerCombinedLength;
+        SetPacketType(regularPacketType);
     }
 
     public int SpaceRemaining
@@ -47,13 +51,22 @@ public class Packet
 
     public void WriteHeader(int packetNumber, int tickNumber, float time)
     {
-        SetPacketType(Mnet.packetTypeRegular);
-        MnetTools.IntegerToBytes(WriteBytes(Mnet.headerPacketNumberLength), packetNumber);
-        MnetTools.IntegerToBytes(WriteBytes(Mnet.headerTickNumberLength), tickNumber);
-        MnetTools.FloatToBytes(WriteBytes(Mnet.headerDeltaTimeLength), time);
-        // Koko p‰ivitet‰‰n ku paketti vaihtuu seuraavaan
-        // Move write head to data portion of the packet. Size will be stored to the header when the packet is finalized.
-        currentLength = Mnet.headerCombinedLength;
+        //SetPacketType(PacketType);
+        MnetTools.IntegerToBytes(Span(Mnet.headerPacketNumberPosition,Mnet.headerPacketNumberLength), packetNumber);
+        SetTickNumber(tickNumber);
+        MnetTools.FloatToBytes(Span(Mnet.headerDeltaTimePosition,Mnet.headerDeltaTimeLength), time);
+        MnetTools.IntegerToBytes(Span(Mnet.headerSizePosition,Mnet.headerSizeLength), currentLength);
+        Debug.Log("WROTE HEADER " + GetPacketType() + ", Number:" + GetPacketNumber() +", Tick:"+GetTickNumber()+", Time:"+GetDeltaTime()+", Size: "+GetSize());
+    }
+
+    public void SetPacketType(PacketType type)
+    {
+        bytes[0] = (byte)type;
+    }
+
+    public PacketType GetPacketType()
+    {
+        return (PacketType)bytes[0];
     }
 
     public int GetPacketNumber()
@@ -64,6 +77,11 @@ public class Packet
     public int GetTickNumber()
     {
         return MnetTools.BytesToInteger(Span(Mnet.headerTickNumberPosition, Mnet.headerTickNumberLength));
+    }
+
+    public void SetTickNumber(int tickNumber)
+    {
+        MnetTools.IntegerToBytes(Span(Mnet.headerTickNumberPosition, Mnet.headerTickNumberLength), tickNumber);
     }
 
     public float GetDeltaTime()
@@ -78,9 +96,17 @@ public class Packet
 
     public void InitializeReceived()
     {
-        currentLength = GetSize();
+        //currentLength = GetSize();
+        //Debug.Log("RECEIVED ASETTI PAKETI PITUUDEKS " + currentLength);
         readPosition = Mnet.headerCombinedLength;
+        PacketType = GetPacketType();
         isNew = true;
+    }
+
+    public void PrepareForRead()
+    {
+        //readPosition = Mnet.headerCombinedLength;
+        currentLength = GetSize();
     }
 
     public void Clear()
@@ -88,11 +114,6 @@ public class Packet
         currentLength = Mnet.headerCombinedLength;
         readPosition = Mnet.headerCombinedLength;
         isNew = false;
-    }
-
-    public void SetPacketType(PacketType type)
-    {
-        bytes[0] = (byte)type;
     }
 
     public PacketType ReadPacketType()
@@ -115,10 +136,28 @@ public class Packet
         }
     }
 
-    public void ClosePacket()
+    public void WriteString(string message)
     {
-        MnetTools.IntegerToBytes(Span(Mnet.headerSizePosition, Mnet.headerSizeLength), currentLength);
-        //Debug.Log("PACKET: " + GetPacketNumber() + ", TICK: " + GetTickNumber() + ", TIME: " + GetDeltaTime() + ", SIZE: " + GetSize());
+        int byteLength = message.Length * 2;
+        MnetTools.Int32ToBytes(WriteBytes(4), byteLength);
+        System.Text.Encoding.Unicode.GetBytes(message, WriteBytes(byteLength));
+    }
+
+    public string ReadString()
+    {
+        int length = MnetTools.BytesToInt32(ReadBytes(4));
+        string scene = System.Text.Encoding.Unicode.GetString(ReadBytes(length));
+        return scene;
+    }
+
+    public void WriteSingleByte(byte value)
+    {
+        bytes[currentLength++] = value;
+    }
+
+    public byte ReadSingleByte()
+    {
+        return bytes[readPosition++];
     }
 
     public Span<byte> WriteBytes(int writeSegmentLength)

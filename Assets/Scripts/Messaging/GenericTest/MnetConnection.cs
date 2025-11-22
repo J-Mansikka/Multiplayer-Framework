@@ -68,8 +68,8 @@ public class MnetConnection
         playerBuffer = new MnetPacketBuffer(bufferSize);
         snapshotRequestTick = 0;
         sendRate = setSendRate;
-        playerPackets = new PacketManager(Mnet.clientPacketBufferSize, owner);
-        messager = new Packet();
+        playerPackets = new PacketManager(Mnet.clientPacketBufferSize, owner, PacketType.RegularUpdate, false, 69);
+        messager = new Packet(PacketType.SystemMessage);
     }
 
     public void ConnectTo(IPEndPoint newEndpoint)

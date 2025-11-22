@@ -64,9 +64,11 @@ public abstract class MnetVariable
     public WANHAMnetObject WANHAowner;
 
     [HideInInspector]
-    public MnetObject owner;
+    public NewObject owner;
     [HideInInspector]
-    public int id;
+    public int variableID;
+    [HideInInspector]
+    public PacketManager packetManager;
 
     public abstract void Serialize(Span<byte> reservedBytes);
 
@@ -75,6 +77,20 @@ public abstract class MnetVariable
     // !! !! MITES COUNT LUETAAN? SE ETTÄ OBJEKTI VOI ANTAA TAVUT VAATII ETTÄ TIETÄÄ KOON? ELI OBJEKTI TUNNISTAA ETTÄ ON JAETTTU
     // JA SEN PERIAATTEEL ANTAA OIKEEN MÄÄRÄN DATAA JA TIEDOT ELI TOTAL SIZE JA START POS
     // TOTALI PITÄÄ OTTAA KOSKA OBJEKTI TARVII SEN MUTTA STARTPOS JA MÄÄRÄ VOIDAA KATTOO TÄÄLLÄ
+
+    public void UpdateVariable()
+    {
+        if (sizeCategory != VariableSize.Static) SetSize();
+        owner.local.activeManager.WriteVariable(this);
+    }
+
+    /*
+    public void SnapshotUpdate(PacketManager snapshotManager)
+    {
+        if (sizeCategory != VariableSize.Static) SetSize();
+        snapshotManager.WriteVariable(this);
+    }
+    */
 
     public void PrepareForSplitWrite()
     {

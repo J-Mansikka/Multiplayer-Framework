@@ -100,7 +100,7 @@ public class MnetClientWANHA : MonoBehaviour
             string messageReceived = Encoding.ASCII.GetString(connectionEstablisherPacket.Span(0, 16));
             if (messageReceived == Mnet.messageNewConnectionVerified)
             {
-                Encoding.ASCII.GetBytes(Mnet.messageReadyToStart.AsSpan(), connectionEstablisherPacket.Span(0, 16));
+                Encoding.ASCII.GetBytes(Mnet.messageSceneIsReady.AsSpan(), connectionEstablisherPacket.Span(0, 16));
                 for (int i = 0; i < (int)PacketPriority.Important; i++)
                 {
                     socket.Send(connectionEstablisherPacket.Span());
@@ -244,7 +244,7 @@ public class MnetClientWANHA : MonoBehaviour
     private void ReceivePackets()
     {
         timeoutTimer++;
-        if(timeoutTimer > Mnet.heartbeatLimit)
+        if(timeoutTimer > Mnet.WANHAheartbeatLimit)
         {
             connectionState = WANHAConnectionState.Disconnected;
             return;

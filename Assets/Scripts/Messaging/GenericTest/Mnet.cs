@@ -48,16 +48,27 @@ public static class Mnet
     public const string messageHandshakeResponse = "heresyourhandler";
     public const string messageNewConnectionTest = "areyoumynewdaddy";
     public const string messageNewConnectionVerified = "ourpowerscombine";
-    public const string messageReadyToStart = "readyandwilling!";
+    public const string messageSceneIsReady = "readyandwilling!";
+    public const string messageStarting = "covermeimgoingin";
+
+    // Let client know snapshot is finished and they should switch over to regular packets again
+    public const string messageNeedSnapshot = "imbadlyoutofdate";
+    public const string messageSnapshotInfo = "foryoureyesonly!";
+    public const string messageSnapshotSent = "youarealldonenow";
     public const string messageDisconnectByServer = "getoutofmyhouse!";
     public const string messageDisconnectByClient = "imgoinghomeseeya";
+    public const string messagePausePlayer = "holdyourhorses!!";
+    public const string messageUnpausePlayer = "getreadygogogo!!";
+
 
     public const byte newClientHandshakeIdentifier = 204;
     /*public const int packetCopiesRegular = 1;
     public const int packetCopiesSafer = 2;
     public const int packetCopiesImportant = 3;*/
-    public const int heartbeatLimit = 250;
-    public const int timeoutLimit = 1000;
+    public const int WANHAheartbeatLimit = 250;
+    public const int WANHAtimeoutLimit = 1000;
+    public const int timeoutPausePlayerLimit = 300;
+    public const int timeoutAutoDisconnectLimit = 5000;
     public const int maxMissedPacketsBeforeSnapshot = 20;
     public const int maxMissedPacketsBeforeDropout = 50;
     public const int snapshotCooldownInTicks = 250;
@@ -67,12 +78,14 @@ public static class Mnet
     public const int maxPlayerCount = 8;
     public const int objectsPerPlayer = 2;
     public const int maxSyncedObjects = 512;
+    public const int reservedInstanceSlots = 1 + maxPlayerCount * objectsPerPlayer;
     public const int bytesReservedForInstanceID = 2;
     public const int bytesReservedForVariableID = 1;
     public const int bytesReservedForMethodID = 1;
     public const int startingReservedSizeForSyncedObjects = 128;
-    public const int serverPacketBufferSize = 4096;
-    public const int clientPacketBufferSize = 1280;          /// Yhteen pakettiin mahtuu paljo historiaa ni voi olla paljo pienempi ku serveri
+    public const int serverPacketBufferSize = 2048;
+    public const int serverSnapshotPacketBufferSize = 512;
+    public const int clientPacketBufferSize = 512;          /// Yhteen pakettiin mahtuu paljo historiaa ni voi olla paljo pienempi ku serveri
     public const int worldStatePacketBufferSize = 128;
     public const int newConnectionListenerPacketSize = 28;
     public const int maxPacketDataSize = 1400; //1400;
@@ -140,11 +153,15 @@ public static class Mnet
     //public const int variableMultipartHeaderLength = bytesReservedForSplitItemSize * 3;//  + maxItemSizeBytes; // Eli nyt olis alotuskohta, m‰‰r‰ ja koko? eli 2 * 3 ?
     public const int variableDividableHeaderAdjustment = 100;
 
+    public const float updateRate = 0.015625f; // 64hz
+    public const float clientInputRate = 0.015625f; // 64hz
+
+
     public const float receiveRate = 0.0125f;       // 80hz
     public const float clientSendRate = 0.015625f;  // 64hz
     public const float sendRate = 0.03125f;   // 32hz
     public const float inputRate = 0.01f;           // 100hz
-    public const float tickRate = 0.02f;         // 32hz
+    public const float tickRate = 0.5f;//0.02f;         // 32hz
 
     // OLD SHIT
     public const float tempPlayerSpeed = 15f;

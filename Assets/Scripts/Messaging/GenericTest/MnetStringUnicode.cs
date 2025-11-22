@@ -37,10 +37,9 @@ public class MnetStringUnicode : MnetVariableType<string>
 
         if (Value == null)
         {
-            Debug.Log("VALUE WAS NULL!");
-            Value = "";
+            SetValue("");
         }
         //
-        if(sizeCategory == VariableSize.Static) sizeCategory = VariableSize.Limited;
+        if(sizeCategory == VariableSize.Static) sizeCategory = VariableSize.Splittable;
     }
 }

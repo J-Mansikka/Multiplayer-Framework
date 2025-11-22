@@ -4,15 +4,16 @@ using System.Collections.Generic;
 using System.Net;
 using UnityEngine;
 
-public class TESTogre : MnetObject
+public class TESTogre : NewObject
+
 {
-    public string ipAddressTest;
-    public MnetInt health;
+
     public bool button;
+    NewArray<MnetInt> arri;
 
     private void Start()
     {
-        Initialize(69);
+        Initialize();
     }
 
     private void Update()
@@ -24,17 +25,13 @@ public class TESTogre : MnetObject
         }
     }
 
-
     public void Test()
     {
-        System.Net.IPEndPoint ep = new System.Net.IPEndPoint(System.Net.IPAddress.Parse(ipAddressTest), 12345);
-        print(ep.Address);
-        byte[] addAsBytes = ep.Address.GetAddressBytes();
-        for (int i = 0; i < addAsBytes.Length; i++)
-        {
-            print(addAsBytes[i]);
-        }
-        ep = new System.Net.IPEndPoint(new IPAddress(addAsBytes), 12345);
-        print(ep.Address);
+
+    }
+
+    public override void UpdateState()
+    {
+        throw new System.NotImplementedException();
     }
 }

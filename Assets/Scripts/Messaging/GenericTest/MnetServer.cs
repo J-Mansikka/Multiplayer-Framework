@@ -104,7 +104,7 @@ public class MnetServer : MnetEndpoint
                             VerifyConnection(connection);
                             // !!! LUO SNAPSHOT JA LÄHETÄ ELI TÄÄ CONNECTION PITÄIS OLLA LISTENISSÄ JO HETI TÄSSÄ KOHTAA
                         }
-                        else if (receivedMessage == Mnet.messageReadyToStart)
+                        else if (receivedMessage == Mnet.messageSceneIsReady)
                         {
                             CreatePlayerObjects(connection);
                             connection.isActive = true;

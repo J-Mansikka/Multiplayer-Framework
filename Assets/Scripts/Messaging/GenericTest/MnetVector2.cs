@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+
 public class MnetVector2 : MnetVariableType<Vector2>
 {
     public override void Deserialize(Span<byte> receivedBytes)
@@ -28,5 +29,6 @@ public class MnetVector2 : MnetVariableType<Vector2>
     {
         sizeCategory = VariableSize.Static;
         sizeInBytes = 8;
+        _value = new Vector2(0, 0);
     }
 }

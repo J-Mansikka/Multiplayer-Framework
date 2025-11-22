@@ -23,7 +23,6 @@ public class DEMOsender : MonoBehaviour
             obj.longTest.Value = Loreal();
             obj.XavierTest.Value = 1969;
             GO = false;
-            ep.worldPackets.packetToWriteOn.ClosePacket();
         }
     }
 

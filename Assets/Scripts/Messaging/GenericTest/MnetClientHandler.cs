@@ -97,7 +97,7 @@ public class MnetClientHandler
                 /// Ei voi viel yhistää
                 //connectionState = ConnectionState.Connected;
             }
-            if (messageReceived == Mnet.messageReadyToStart)
+            if (messageReceived == Mnet.messageSceneIsReady)
             {
                 connectionState = WANHAConnectionState.SyncWorldState;
             }
@@ -178,7 +178,7 @@ public class MnetClientHandler
         else
         {
             timeoutTimer += time;
-            if (timeoutTimer > Mnet.heartbeatLimit)
+            if (timeoutTimer > Mnet.WANHAheartbeatLimit)
             {
                 Disconnect();
             }

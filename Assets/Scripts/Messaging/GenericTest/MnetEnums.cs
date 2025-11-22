@@ -21,9 +21,34 @@ public enum WANHAConnectionState
     NotActive, ContactServer, Handshake, SyncWorldState, Connected, MissingPackets, Reconcile, Disconnected
 }
 
+public enum SceneLoadMethod : byte
+{
+    CallForSnapshot = 1, // Clients should ask for snaphot after loading the scene and then send ready message when done updating object states
+    GetSceneObjects = 2, // Clients should get objects from scene, then send the ready message
+    WaitForMoreInfo = 3  // Clients will load the scene and send ready message and wait
+}
+
 public enum ConnectionState
 {
-    Active, Initializing, Handshake, Connecting, Loading
+    // CONNECTED: These states are actively receiving packets from server
+    Active, // Connection seems to be working and is regularly sending and receiving packets
+    Paused, // Connection is active, but the client or entire game is still paused
+    SnapshotUpdateRequired, // Connection requires a snapshot update for syncing
+    //ProcessingSnapshot,
+    // NOT CONNECTED: These states do not receive regular updates from the server
+    Disconnected, // Connection object still exits, but the there is no data being send or received
+    Handshake, // Connection is first being tested between newly connected sockets
+    Connecting, // Connection is working and initialization data is being send and processed
+    Loading, // Client is loading correct scene and possibly implementing initialization settings. Temporary state that will most likely last one frame
+
+    // STATE FLOW
+    // New Connection: Handshake -> Connecting -> Loading -> Initializing -> Active
+    // Timing out: Active -> Paused -> SnapshotUpdateRequired -> Disconnected OR SnapshotUpdateRequired -> Initializing -> Active
+    // 
+    //
+    //
+    //
+    //
 }
 
 public enum Ownership
@@ -130,9 +155,14 @@ public enum WANHAAConnectionState
 
 public enum PacketType
 {
-    Regular = 0, ResendRequest = 1, SystemMessage = 100
+    //Handshake = 50, // Used by server's new connection listener and clients trying to connect
+    //Connecting = 51, // Used to identify messages between newly created connections before game starts
+    RegularUpdate = 100, // Incoming regular packet
+    SnapshotUpdate = 101, // When sent by... SERVER: New snapshot update packet. CLIENT: Request for a new snapshot update
+    //ResendRequest = 151, // Request to resend missing regular packets
+    //ResendSnapshotRequest = 152, // Request to resend missing snapshot packets (bad sign, connection problems)
+    SystemMessage = 200 // A string code for many non-gameworld events like disconnect request etc
 }
-
 
 // First byte on each packet. Notifies the recipient of the type of the message
 // ServerRegular: 

@@ -892,9 +892,9 @@ public abstract class MnetEndpoint : MonoBehaviour
         {
             // If we did not receive anything on this attempt, return false !!! JOS FALSE Ni KUtsuJa LISÄÄ TIMEOUT TIMERII
             incoming.missedHeartbeatCount++;
-            if(incoming.missedHeartbeatCount > Mnet.heartbeatLimit)
+            if(incoming.missedHeartbeatCount > Mnet.WANHAheartbeatLimit)
             {
-                if(incoming.missedHeartbeatCount > Mnet.timeoutLimit)
+                if(incoming.missedHeartbeatCount > Mnet.WANHAtimeoutLimit)
                 {
                     Disconnect(incoming,DisconnectCause.Timeout);
                 }

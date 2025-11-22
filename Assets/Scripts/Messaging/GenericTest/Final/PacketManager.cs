@@ -1,16 +1,45 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 public class PacketManager
 {
+
+    // OutgoingPacketNumber: Current packet number for writing
+    // IncomingPacketNumber: 
+    //
+    //
+    //
+    //
+    //
+    //
+    //
 
     //public int writePosition; Ei tarvita koska headerin osat vaihdetaan suoraan ja dataa ku kirjotetaan ni kirjotetaan vaan aina kerran ja olemassa olevan per‰‰n
     //public int packetNumber;
     //public bool isActive;
     //public bool isFull;
     //public int tickNumber;
-    public int outgoingPacketNumber;
-    public int incomingPacketNumber;
+    //private PacketType regularPacketType;
+    public PacketType BufferType { get; private set; }
+    public int currentPacketNumber;
+    //public int incomingPacketNumber;
+    public int expectedPacketNumber;
+    public int highestPacketNumberReceived;
+    public int currentTickNumber;
+    private bool incomingPlayerPackets;
+    private int playerID;
+    private HashSet<int> validObjectIDs;
+    /*
+    public int TickBuffer
+    {
+        get { return lastTickReceived - lastTickProcessed; }
+    }
+    */
+    // Pit‰is riitt‰‰ et palauttaa nyt 1 jos client hakee snapshotin p‰‰ttymist
+    public int lastTickProcessed; // Pit‰is olla oikein
+    public int lastTickReceived; // Kattoo vaan saadusta korkeimman tickin eli ei valmiita. Yhden v‰‰r‰s siis
+
     //public bool isCircularBuffer;
 
     private MnetNetwork local;
@@ -22,7 +51,7 @@ public class PacketManager
     public Packet packetToRead;     // REMOTE: Current packet to read received data
     public Packet packetToWriteOn;  // LOCAL: Current packet to write on with local data
 
-    public PacketManager(int bufferSize, MnetNetwork localMnetInstance)
+    public PacketManager(int bufferSize, MnetNetwork localMnetInstance, PacketType packetType, bool incomingPlayerPackets, int playerID)
     {
         //buffer = new MnetPacket[ServerSettings.packetBufferSize];
         //packetBuffer = new byte[ServerSettings.packetBufferSize][ServerSettings.maxPacketSize];
@@ -31,8 +60,10 @@ public class PacketManager
         packetBuffer = new Packet[bufferSize];
         for (int i = 0; i < packetBuffer.Length; i++)
         {
-            packetBuffer[i] = new Packet();
+            packetBuffer[i] = new Packet(packetType);
+            packetBuffer[i].debugIndex = i;
         }
+        BufferType = packetType;
         // Link packets in buffer together
         for (int i = 0; i < packetBuffer.Length - 1; i++)
         {
@@ -40,12 +71,31 @@ public class PacketManager
         }
         // Connect last packet to the first
         packetBuffer[packetBuffer.Length - 1].nextPacket = packetBuffer[0];
-        packetToWriteOn = packetBuffer[0];
-        packetToRead = packetBuffer[0];
-        incomingPacket = packetBuffer[0];
-        outgoingPacket = packetBuffer[0];
+        // Skip index 0 for easier comparison
+        int startIndex = 1;
+        packetToWriteOn = packetBuffer[startIndex];
+        packetToRead = packetBuffer[startIndex];
+        incomingPacket = packetBuffer[startIndex];
+        outgoingPacket = packetBuffer[startIndex];
+        currentPacketNumber = startIndex;
+        expectedPacketNumber = startIndex;
+        currentTickNumber = 1;
+        lastTickProcessed = 0;
+        lastTickReceived = 0;
+        this.incomingPlayerPackets = incomingPlayerPackets;
+        if (incomingPlayerPackets)
+        {
+            validObjectIDs = new HashSet<int>();
+            this.playerID = playerID;
+            int indexOfPlayerObject = 1 + (playerID - 1) * Mnet.objectsPerPlayer;
+            for (int i = 0; i < Mnet.objectsPerPlayer; i++)
+            {
+                validObjectIDs.Add(indexOfPlayerObject + i);
+            }
+        }
         //packetToWriteOn.WriteHeader(outgoingPacketNumber, owner.currentTickNumber, owner.deltaTime);
-        incomingPacket.readPosition = Mnet.headerCombinedLength;
+        incomingPacket.Clear();
+        //regularPacketType = packetType;
     }
 
     public Packet GetPacket(int packetID)
@@ -63,23 +113,61 @@ public class PacketManager
         }
     }
 
-
-
-
     public void NextWritePacket()
     {
-        packetToWriteOn.ClosePacket();
+        Debug.Log(local + " HEADER TICK WROTE " + currentTickNumber);
+        packetToWriteOn.WriteHeader(currentPacketNumber, currentTickNumber, local.deltaTime);
+        packetToWriteOn.isNew = true;
         packetToWriteOn = packetToWriteOn.nextPacket;
-        outgoingPacketNumber++;
-        Debug.Log("LAST PACKET " + outgoingPacketNumber);
-        packetToWriteOn.WriteHeader(outgoingPacketNumber, local.currentTickNumber, local.deltaTime);
+        packetToWriteOn.Clear();
+        currentPacketNumber++;
     }
 
     public void NextReadPacket()
     {
         packetToRead = packetToRead.nextPacket;
-        packetToRead.readPosition = Mnet.headerCombinedLength;
-        packetToRead.currentLength = packetToRead.GetSize();
+    }
+
+    public void NextOutgoingPacket()
+    {
+        outgoingPacket = outgoingPacket.nextPacket;
+        outgoingPacket.Clear();
+    }
+
+    public void InsertPacket(Packet receivedPacket)
+    {
+        int packetNumber = receivedPacket.GetPacketNumber();
+        // We got the correct packet number so we can just insert the data and move on to the next one
+        Debug.Log(local.name + " "+BufferType+" got packet#" + packetNumber + ", expected packet# " + expectedPacketNumber);
+        Debug.Log("INSERTING WITH TICK " + receivedPacket.GetTickNumber());
+        if (packetNumber == expectedPacketNumber)
+        {
+            incomingPacket.SwapData(receivedPacket);
+            incomingPacket.isNew = true;
+
+            // Find the next packet that is needed
+            while (incomingPacket.isNew)
+            {
+                int tick = incomingPacket.GetTickNumber();
+                if (lastTickReceived < tick)  lastTickReceived = tick;
+                Debug.Log("TICK IN INSERTION " + lastTickReceived);
+                incomingPacket = incomingPacket.nextPacket;
+                expectedPacketNumber++;
+            }
+
+        }
+        // We received newer packet than expected, so we will mark its number down and take the data if needed
+        else if(packetNumber > expectedPacketNumber)
+        {
+            Packet wrongPacket = GetPacket(packetNumber);
+            if (packetNumber > highestPacketNumberReceived)  highestPacketNumberReceived = packetNumber;
+
+            if (!wrongPacket.isNew)
+            {
+                wrongPacket.SwapData(receivedPacket);
+                wrongPacket.isNew = true;
+            }
+        }
     }
 
     public void WriteVariable(MnetVariable updatedVariable)
@@ -92,14 +180,15 @@ public class PacketManager
 
         //Debug.Log("OBJ = "+updatedVariable.owner.instanceID+","+updatedVariable.variableName + " ID = " + updatedVariable.id);
 
+        Debug.Log(local+" WRITING AT " + packetToWriteOn.currentLength);
+
         if (updatedVariable.sizeCategory != VariableSize.Splittable)
         {
-            CheckSpaceLeftForWriting(Mnet.bytesReservedForObjectID + Mnet.bytesReservedForVariableID + (int)updatedVariable.sizeCategory + updatedVariable.sizeInBytes);
+            CheckSpaceLeftForWriting(Mnet.bytesReservedForInstanceID + Mnet.bytesReservedForVariableID + (int)updatedVariable.sizeCategory + updatedVariable.sizeInBytes);
             MnetTools.IntegerToBytes(packetToWriteOn.WriteBytes(Mnet.bytesReservedForInstanceID),updatedVariable.owner.instanceID);
-            MnetTools.IntegerToBytes(packetToWriteOn.WriteBytes(Mnet.bytesReservedForVariableID), updatedVariable.id);
+            MnetTools.IntegerToBytes(packetToWriteOn.WriteBytes(Mnet.bytesReservedForVariableID), updatedVariable.variableID);
             //Debug.Log("OBJECTID: " + MnetTools.BytesToInteger(packetToWriteOn.Span(15,2)));
-            Debug.Log("PACKET: " + packetToWriteOn.GetPacketNumber() + ", TICK: " + packetToWriteOn.GetTickNumber()
-    + ", TIME: " + packetToWriteOn.GetDeltaTime() + ", SIZE: " + packetToWriteOn.GetSize());
+            //Debug.Log("PACKET: " + packetToWriteOn.GetPacketNumber() + ", TICK: " + packetToWriteOn.GetTickNumber()+ ", TIME: " + packetToWriteOn.GetDeltaTime() + ", SIZE: " + packetToWriteOn.GetSize());
             if (updatedVariable.sizeCategory == VariableSize.Limited)
             {
                 MnetTools.IntegerToBytes(packetToWriteOn.WriteBytes((int)updatedVariable.sizeCategory), updatedVariable.sizeInBytes);
@@ -110,7 +199,7 @@ public class PacketManager
         {
             CheckSpaceLeftForWriting(Mnet.minimumPacketSpaceNeededForWrite);
             MnetTools.IntegerToBytes(packetToWriteOn.WriteBytes(Mnet.bytesReservedForInstanceID), updatedVariable.owner.instanceID);
-            MnetTools.IntegerToBytes(packetToWriteOn.WriteBytes(Mnet.bytesReservedForVariableID), updatedVariable.id);
+            MnetTools.IntegerToBytes(packetToWriteOn.WriteBytes(Mnet.bytesReservedForVariableID), updatedVariable.variableID);
             MnetTools.IntegerToBytes(packetToWriteOn.WriteBytes((int)updatedVariable.sizeCategory), updatedVariable.sizeInBytes);
 
             // LOOP WRITE -> SWAP eli katotaan remaining -> kopioi -> jos j‰jell‰ -> uusi paketti
@@ -122,22 +211,40 @@ public class PacketManager
                 writtenAmount = updatedVariable.TryWriteSplittable(packetToWriteOn.AllAvailableBytes());
                 bytesRemaining -= writtenAmount;
                 packetToWriteOn.currentLength += writtenAmount;
-                Debug.Log("Written Amount " + writtenAmount);
+                //Debug.Log("Written Amount " + writtenAmount);
                 CheckSpaceLeftForWriting(Mnet.minimumPacketSpaceNeededForWrite);
             }
         }
     }
 
-    public void ReadTick(int currenTickNumber)
+    public void ReadTick()
     {
-        while(packetToRead.GetTickNumber() == currenTickNumber)
+        Debug.Log(local.name+" received: " + packetToRead.GetTickNumber() + "/" + currentTickNumber);
+        if (packetToRead.GetTickNumber() == currentTickNumber)
         {
-            bool checkTickNumber = false;
-            while(!checkTickNumber)
+            Debug.Log(local.name + " " + BufferType + " currentTick = " + currentTickNumber + ", packetTick = " + packetToRead.GetTickNumber());
+            while (packetToRead.GetTickNumber() == currentTickNumber)
             {
-                checkTickNumber = ReadVariable();
+                // Toivottavasti oikee kohta
+                packetToRead.PrepareForRead();
+                // Check for empty packet
+                if (packetToRead.BytesLeftToRead == 0)
+                {
+                    NextReadPacket();
+                    continue;
+                }
+                bool checkTickNumber = false;
+                Debug.Log(local + " read PACKET " + packetToRead.GetPacketNumber() + " LENGTH " + packetToRead.GetSize() + " WITH TICK " + packetToRead.GetTickNumber());
+                Debug.Log("READ PACKET START POS " + packetToRead.readPosition);
+                while (!checkTickNumber)
+                {
+                    checkTickNumber = ReadVariable();
+                }
             }
+            lastTickProcessed = currentTickNumber;
+            currentTickNumber++;
         }
+
     }
 
     public bool ReadVariable()
@@ -145,11 +252,13 @@ public class PacketManager
         // 1. Lue headeri
         // 2. Hae variaabeli
         // 3. Lue dataa kunnes valmis?
-
         
         int objInstanceID = MnetTools.BytesToInteger(packetToRead.ReadBytes(Mnet.bytesReservedForInstanceID));
         int variableID = MnetTools.BytesToInteger(packetToRead.ReadBytes(Mnet.bytesReservedForVariableID));
-        Debug.Log("OBJ: " + objInstanceID + ", VAR: " + variableID+", PACKET: "+packetToRead.GetPacketNumber()+", LENGTH: "+packetToRead.BytesLeftToRead);
+
+        // TƒHƒ BLOCKI MUT MITE TUNNISTAA ET ON PLAYER PACKETS JA OLLAAN SERVER?
+
+        Debug.Log("INSTANCE: " + objInstanceID + ", VAR: " + variableID+", PACKET: "+packetToRead.GetPacketNumber()+", BYTES LEFT: "+packetToRead.BytesLeftToRead);
         // Check if we got a method call instead
         if (variableID == 0)
         {
@@ -157,7 +266,9 @@ public class PacketManager
         }
         else
         {
-            MnetVariable receivedVar = local.GetObject(objInstanceID).GetVariable(variableID);
+            NewObject test = local.GetActiveObject(objInstanceID);
+            if(test == null )Debug.Log("NULL CHECK: "+objInstanceID);//+" VAR = "+ local.GetActiveObject(objInstanceID).GetVariable(variableID));
+            MnetVariable receivedVar = local.GetActiveObject(objInstanceID).GetVariable(variableID);
 
             // Get size of the updated value if necessary
             if (receivedVar.sizeCategory > VariableSize.Static)
@@ -166,24 +277,44 @@ public class PacketManager
             }
 
             // If the value was not split, we can immediately deserialize it from the bytes
-            if (receivedVar.sizeInBytes < packetToRead.BytesLeftToRead)
+            // T‰‰ olis ehk‰ seonnus jos olis viimiset tavut ollu just varin koon verra ni lis‰sin =  eli oli <, nyt <=
+            if (receivedVar.sizeInBytes <= packetToRead.BytesLeftToRead)
             {
-                receivedVar.Deserialize(packetToRead.ReadBytes(receivedVar.sizeInBytes));
+                if (!incomingPlayerPackets || validObjectIDs.Contains(objInstanceID))
+                {
+                    receivedVar.Deserialize(packetToRead.ReadBytes(receivedVar.sizeInBytes));
+                }
+                else
+                {
+                    Debug.LogError("PLAYER " + playerID + " SENT FALSE DATA FOR OBJECT " + local.worldObjectInstances[objInstanceID]);
+                    // Skip the bytes
+                    packetToRead.currentLength += receivedVar.sizeInBytes;
+                }
             }
             // The received value is split into multiple packets
             else
             {
                 // Since this variable is split between multiple packets, we need to track the reading process
-                int bytesLeftToRead = receivedVar.sizeInBytes;
+                int splitBytesLeftToRead = receivedVar.sizeInBytes;
                 int readAmount;
-                while (bytesLeftToRead > 0)
+                while (splitBytesLeftToRead > 0)
                 {
                     // Remaining bytes might be the whole packet or a smaller segment so we need to check which is the case
-                    readAmount = Math.Min(bytesLeftToRead, packetToRead.BytesLeftToRead);
-                    receivedVar.TryReadSplittable(packetToRead.ReadBytes(readAmount));
-                    bytesLeftToRead -= readAmount;
-                    // Check if we are done or if we need another packet for the variable
-                    if (bytesLeftToRead != 0)  NextReadPacket();
+                    readAmount = Math.Min(splitBytesLeftToRead, packetToRead.BytesLeftToRead);
+                    if (!incomingPlayerPackets || validObjectIDs.Contains(objInstanceID))
+                    {
+                        receivedVar.TryReadSplittable(packetToRead.ReadBytes(readAmount));
+                    }
+                    else
+                    {
+                        Debug.LogError("PLAYER " + playerID + " SENT FALSE DATA FOR OBJECT " + local.worldObjectInstances[objInstanceID]);
+                        // Skip the bytes
+                        packetToRead.currentLength += readAmount;
+                    }
+
+                    splitBytesLeftToRead -= readAmount;
+                    // Check if we are done or if we need another packet for the variable. No need to check the tick, we know this is still part of same update.
+                    if (splitBytesLeftToRead != 0)  NextReadPacket();
                 }
                 Debug.Log("READ DONE. PACKET: " + packetToRead.GetPacketNumber() + ", LENGTH: " + packetToRead.BytesLeftToRead);
             }
@@ -192,6 +323,7 @@ public class PacketManager
         // Check if we have reached the end of the packet
         if(packetToRead.BytesLeftToRead == 0)
         {
+            Debug.Log(local.name+" done reading packet.");
             NextReadPacket();
             return true;
         }
@@ -203,6 +335,7 @@ public class PacketManager
     {
         // Object Instance ID + Method Identifier (value 0) + Method ID
         // 0 = Method Call, 1... = Variables
+        Debug.Log("WRITING METHOD ON " + local.worldObjectInstances[objectID]);
         CheckSpaceLeftForWriting(Mnet.bytesReservedForInstanceID + 1 + Mnet.bytesReservedForMethodID);
 
         MnetTools.IntegerToBytes(packetToWriteOn.WriteBytes(Mnet.bytesReservedForInstanceID), objectID);
@@ -212,7 +345,19 @@ public class PacketManager
 
     public void ReadMethodCall(int objectInstanceID)
     {
-        local.GetObject(objectInstanceID).InvokeMethod(MnetTools.BytesToInteger(incomingPacket.ReadBytes(Mnet.bytesReservedForMethodID)));
+        Debug.Log("INSTANCE " + objectInstanceID+" IS "+local.GetActiveObject(objectInstanceID));
+
+        if (!incomingPlayerPackets || validObjectIDs.Contains(objectInstanceID))
+        {
+            local.GetActiveObject(objectInstanceID).InvokeMethod(MnetTools.BytesToInteger(packetToRead.ReadBytes(Mnet.bytesReservedForMethodID)));
+        }
+        else
+        {
+            Debug.LogError("PLAYER " + playerID + " SENT FALSE DATA FOR OBJECT " + local.worldObjectInstances[objectInstanceID]);
+            // Skip the bytes
+            packetToRead.currentLength += Mnet.bytesReservedForMethodID;
+        }
+
     }
 
 

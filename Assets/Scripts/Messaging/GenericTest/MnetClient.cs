@@ -211,7 +211,7 @@ public class MnetClient : MnetEndpoint
             // Send the ready message to the server as a last step
             messenger.Reset();
             //System.Text.Encoding.ASCII.GetBytes(Mnet.messageReadyToStart, messenger.Write(Mnet.messageLength));
-            messenger.WriteMessage(Mnet.messageReadyToStart);
+            messenger.WriteMessage(Mnet.messageSceneIsReady);
             Send(messenger, clientConnection, PacketPriority.Important);
             
             // Client has connected and we are ready to simulate ticks
